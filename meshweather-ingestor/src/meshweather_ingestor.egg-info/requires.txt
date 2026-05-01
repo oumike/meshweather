@@ -1,0 +1,4 @@
+meshtastic>=2.7.0
+pypubsub>=4.0.3
+fastapi<1.0.0,>=0.115.0
+uvicorn<1.0.0,>=0.30.0

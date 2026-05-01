@@ -1,0 +1,2 @@
+[console_scripts]
+meshweather-ingestor = meshweather_ingestor.cli:main

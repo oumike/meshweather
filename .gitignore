@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Local data and env
+.env
+*.db
+*.sqlite
+*.sqlite3
+
+# macOS
+.DS_Store
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo

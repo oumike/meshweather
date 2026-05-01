@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meshweather-ingestor"
+version = "0.1.0"
+description = "Meshtastic weather telemetry ingestor over TCP/IP into SQLite"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "meshtastic>=2.7.0",
+  "pypubsub>=4.0.3",
+  "fastapi>=0.115.0,<1.0.0",
+  "uvicorn>=0.30.0,<1.0.0",
+]
+
+[project.scripts]
+meshweather-ingestor = "meshweather_ingestor.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
