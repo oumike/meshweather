@@ -1,7 +1,7 @@
 services:
   meshweather-ingestor:
-    build:
-      context: ./meshweather-ingestor
+    image: ghcr.io/oumike/meshweather-ingestor:latest
+    pull_policy: always
     container_name: meshweather-ingestor
     environment:
       MESHWEATHER_HOST: ${MESHWEATHER_HOST:-host.docker.internal}
@@ -17,10 +17,8 @@ services:
     restart: unless-stopped
 
   meshweather-frontend:
-    build:
-      context: ./meshweather
-      args:
-        VITE_MESHWEATHER_API_BASE_URL: ${VITE_MESHWEATHER_API_BASE_URL:-http://127.0.0.1:18080}
+    image: ghcr.io/oumike/meshweather-frontend:latest
+    pull_policy: always
     container_name: meshweather-frontend
     ports:
       - "9090:80"
