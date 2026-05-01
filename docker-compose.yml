@@ -1,0 +1,32 @@
+services:
+  meshweather-ingestor:
+    build:
+      context: ./meshweather-ingestor
+    container_name: meshweather-ingestor
+    environment:
+      MESHWEATHER_HOST: ${MESHWEATHER_HOST:-host.docker.internal}
+      MESHWEATHER_PORT: ${MESHWEATHER_PORT:-4403}
+      MESHWEATHER_DB_PATH: /app/data/meshweather.db
+      MESHWEATHER_API_HOST: 0.0.0.0
+      MESHWEATHER_API_PORT: 8080
+      MESHWEATHER_LOG_LEVEL: ${MESHWEATHER_LOG_LEVEL:-INFO}
+    ports:
+      - "18080:8080"
+    volumes:
+      - meshweather_data:/app/data
+    restart: unless-stopped
+
+  meshweather-frontend:
+    build:
+      context: ./meshweather
+      args:
+        VITE_MESHWEATHER_API_BASE_URL: ${VITE_MESHWEATHER_API_BASE_URL:-http://127.0.0.1:18080}
+    container_name: meshweather-frontend
+    ports:
+      - "9090:80"
+    depends_on:
+      - meshweather-ingestor
+    restart: unless-stopped
+
+volumes:
+  meshweather_data:

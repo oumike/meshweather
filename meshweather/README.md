@@ -30,4 +30,15 @@ Optional Vite env var:
 ## Notes
 
 - The map requires `node_latitude` and `node_longitude` values from API node records.
-- If a node has telemetry but no coordinates, it appears under `Nodes Without Coordinates`.
+- Nodes without coordinates are not shown in the right-side node list.
+
+## Container
+
+Build and run this project directly:
+
+```bash
+docker build -t meshweather-frontend .
+docker run --rm -p 9090:80 meshweather-frontend
+```
+
+Or run both frontend + ingestor from the workspace root using `docker compose up --build`.

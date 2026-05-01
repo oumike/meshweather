@@ -69,3 +69,18 @@ Environment variables (optional):
 
 - This project is intentionally SQLite-first for local simplicity.
 - Storage is isolated in a repository class to make future MongoDB migration straightforward.
+
+## Container
+
+Build and run this project directly:
+
+```bash
+docker build -t meshweather-ingestor .
+docker run --rm -p 18080:8080 \
+	-e MESHWEATHER_HOST=192.168.1.50 \
+	-e MESHWEATHER_API_HOST=0.0.0.0 \
+	-v meshweather_data:/app/data \
+	meshweather-ingestor
+```
+
+Or run both frontend + ingestor from the workspace root using `docker compose up --build`.
