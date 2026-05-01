@@ -80,7 +80,5 @@ jobs:
           context: ./meshweather
           file: ./meshweather/Dockerfile
           push: true
-          build-args: |
-            VITE_MESHWEATHER_API_BASE_URL=http://127.0.0.1:18080
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

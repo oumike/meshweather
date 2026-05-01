@@ -6,7 +6,7 @@ React app that visualizes telemetry data exposed by `meshweather-ingestor` HTTP 
 
 - Map with one pin per node that has coordinates.
 - Pin popup with latest ingested weather telemetry.
-- Side panel for node list and nodes without coordinates.
+- Side panel for searchable/sortable node list.
 
 ## Run
 
@@ -19,13 +19,9 @@ Then open the local URL shown by Vite (typically `http://localhost:5173`).
 
 ## API Configuration
 
-1. Start ingestor API (default `http://127.0.0.1:8080`).
-2. Open the app and set `API Base URL` if needed.
-3. Click `Refresh` to load latest node summaries.
+In containerized deployments, API requests are proxied through the frontend container to `meshweather-ingestor` over the internal Docker network.
 
-Optional Vite env var:
-
-- `VITE_MESHWEATHER_API_BASE_URL=http://127.0.0.1:8080`
+The API base URL is not user-editable in the UI.
 
 ## Notes
 
@@ -38,7 +34,7 @@ Build and run this project directly:
 
 ```bash
 docker build -t meshweather-frontend .
-docker run --rm -p 9090:80 meshweather-frontend
+docker run --rm -p 10090:80 meshweather-frontend
 ```
 
 Or run both frontend + ingestor from the workspace root using `docker compose up --build`.

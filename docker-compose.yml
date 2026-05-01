@@ -10,8 +10,8 @@ services:
       MESHWEATHER_API_HOST: 0.0.0.0
       MESHWEATHER_API_PORT: 8080
       MESHWEATHER_LOG_LEVEL: ${MESHWEATHER_LOG_LEVEL:-INFO}
-    ports:
-      - "18080:8080"
+    expose:
+      - "8080"
     volumes:
       - meshweather_data:/app/data
     restart: unless-stopped
@@ -21,7 +21,7 @@ services:
     pull_policy: always
     container_name: meshweather-frontend
     ports:
-      - "9090:80"
+      - "${MESHWEATHER_FRONTEND_PORT:-10090}:80"
     depends_on:
       - meshweather-ingestor
     restart: unless-stopped

@@ -19,22 +19,22 @@ This workspace includes one container for each project and a single compose file
 export MESHWEATHER_HOST=192.168.1.50
 ```
 
-2. Build and start both services:
+2. Start both services:
 
 ```bash
-docker compose up --build
+docker compose up
 ```
 
 3. Access services:
 
-- Frontend: http://localhost:9090
-- Ingestor API: http://localhost:18080
+- Frontend: http://localhost:10090
+- Ingestor API: internal-only via frontend reverse proxy (`/api/*`)
 
 Optional environment variables:
 
 - `MESHWEATHER_PORT` (default `4403`)
 - `MESHWEATHER_LOG_LEVEL` (default `INFO`)
-- `VITE_MESHWEATHER_API_BASE_URL` (frontend build-time API URL, default `http://127.0.0.1:18080`)
+- `MESHWEATHER_FRONTEND_PORT` (default `10090`)
 
 The SQLite database is persisted in the named volume `meshweather_data`.
 

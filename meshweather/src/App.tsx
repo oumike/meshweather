@@ -1,4 +1,3 @@
-import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import L from "leaflet";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
@@ -11,9 +10,7 @@ import type {
 import "./App.css";
 
 const FALLBACK_CENTER: [number, number] = [39.8283, -98.5795];
-const DEFAULT_API_BASE_URL =
-  (import.meta.env.VITE_MESHWEATHER_API_BASE_URL as string | undefined) ??
-  "http://127.0.0.1:8080";
+const API_NODES_ENDPOINT = "/api/nodes?limit=1000";
 const AUTO_REFRESH_MS = 30_000;
 type UnitSystem = "metric" | "imperial";
 type NodeListSort =
@@ -63,10 +60,6 @@ function getCompactNodeHeader(row: ApiNodeObservation): string {
     return shortName;
   }
   return getNodeLabel(row);
-}
-
-function normalizeApiBaseUrl(value: string): string {
-  return value.trim().replace(/\/+$/, "");
 }
 
 function rowTimestampMs(row: ApiNodeObservation): number | null {
@@ -335,12 +328,6 @@ function compareNullableNumber(
 
 function App() {
   const [rows, setRows] = useState<ApiNodeObservation[]>([]);
-  const [apiBaseUrl, setApiBaseUrl] = useState<string>(
-    normalizeApiBaseUrl(DEFAULT_API_BASE_URL),
-  );
-  const [draftApiBaseUrl, setDraftApiBaseUrl] = useState<string>(
-    normalizeApiBaseUrl(DEFAULT_API_BASE_URL),
-  );
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string>("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
@@ -433,7 +420,7 @@ function App() {
     setIsLoading(true);
     setLoadError("");
 
-    const response = await fetch(`${apiBaseUrl}/api/nodes?limit=1000`);
+    const response = await fetch(API_NODES_ENDPOINT);
     if (!response.ok) {
       throw new Error(`Request failed (${response.status})`);
     }
@@ -447,7 +434,7 @@ function App() {
     setLastUpdatedAt(Date.now());
     setLoadError("");
     setIsLoading(false);
-  }, [apiBaseUrl]);
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -495,15 +482,6 @@ function App() {
     }
   }
 
-  function onApiUrlSubmit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    const normalized = normalizeApiBaseUrl(draftApiBaseUrl);
-    if (!normalized) {
-      return;
-    }
-    setApiBaseUrl(normalized);
-  }
-
   const lastUpdatedLabel = useMemo(() => {
     if (!lastUpdatedAt) {
       return "n/a";
@@ -527,20 +505,6 @@ function App() {
         </div>
 
         <div className="controls-card">
-          <form className="api-form" onSubmit={onApiUrlSubmit}>
-            <label htmlFor="api-url-input">API Base URL</label>
-            <div className="api-controls">
-              <input
-                id="api-url-input"
-                type="url"
-                value={draftApiBaseUrl}
-                onChange={(event) => setDraftApiBaseUrl(event.target.value)}
-                placeholder="http://127.0.0.1:8080"
-              />
-              <button type="submit">Apply</button>
-            </div>
-          </form>
-
           <button
             type="button"
             className="refresh-button"
@@ -551,8 +515,6 @@ function App() {
           >
             {isLoading ? "Refreshing..." : "Refresh"}
           </button>
-
-          <p className="hint">Current API: {apiBaseUrl}</p>
           <p className="status">Last update: {lastUpdatedLabel}</p>
           <p className="status">Auto-refresh: every 30 seconds</p>
 
