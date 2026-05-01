@@ -1,0 +1,86 @@
+name: Publish Container Images
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-ingestor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata (ingestor)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/meshweather-ingestor
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha
+          flavor: |
+            latest=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push ingestor image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./meshweather-ingestor
+          file: ./meshweather-ingestor/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  publish-frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata (frontend)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/meshweather-frontend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha
+          flavor: |
+            latest=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./meshweather
+          file: ./meshweather/Dockerfile
+          push: true
+          build-args: |
+            VITE_MESHWEATHER_API_BASE_URL=http://127.0.0.1:18080
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
