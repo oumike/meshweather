@@ -12,6 +12,21 @@ services:
       MESHWEATHER_LOG_LEVEL: ${MESHWEATHER_LOG_LEVEL:-INFO}
     expose:
       - "8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request;
+            urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
     volumes:
       - meshweather_data:/app/data
     restart: unless-stopped
@@ -23,7 +38,8 @@ services:
     ports:
       - "${MESHWEATHER_FRONTEND_PORT:-10090}:80"
     depends_on:
-      - meshweather-ingestor
+      meshweather-ingestor:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
