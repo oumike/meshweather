@@ -11,6 +11,7 @@ import "./App.css";
 
 const FALLBACK_CENTER: [number, number] = [39.8283, -98.5795];
 const API_NODES_ENDPOINT = "/api/nodes?limit=1000";
+const API_HEALTH_ENDPOINT = "/health";
 const AUTO_REFRESH_MS = 30_000;
 type UnitSystem = "metric" | "imperial";
 type NodeListSort =
@@ -331,6 +332,10 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string>("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
+  const [apiConnected, setApiConnected] = useState(false);
+  const [isIngesting, setIsIngesting] = useState(false);
+  const [observationCount, setObservationCount] = useState<number | null>(null);
+  const [, setLastObservationCount] = useState<number | null>(null);
   const [unitSystem, setUnitSystem] = useState<UnitSystem>(readStoredUnitSystem);
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
   const [mapFocusTarget, setMapFocusTarget] = useState<MapFocusTarget | null>(null);
@@ -420,14 +425,37 @@ function App() {
     setIsLoading(true);
     setLoadError("");
 
-    const response = await fetch(API_NODES_ENDPOINT);
-    if (!response.ok) {
-      throw new Error(`Request failed (${response.status})`);
+    const [nodesResponse, healthResponse] = await Promise.all([
+      fetch(API_NODES_ENDPOINT),
+      fetch(API_HEALTH_ENDPOINT),
+    ]);
+
+    if (!nodesResponse.ok) {
+      throw new Error(`Request failed (${nodesResponse.status})`);
     }
 
-    const payload = (await response.json()) as ApiNodesResponse;
+    const payload = (await nodesResponse.json()) as ApiNodesResponse;
     if (!Array.isArray(payload.nodes)) {
       throw new Error("API response missing nodes array");
+    }
+
+    if (healthResponse.ok) {
+      const health = (await healthResponse.json()) as {
+        status?: string;
+        observations?: number;
+      };
+      const observations =
+        typeof health.observations === "number" ? health.observations : 0;
+
+      setApiConnected(health.status === "ok");
+      setObservationCount(observations);
+      setLastObservationCount((previous) => {
+        setIsIngesting(previous !== null ? observations > previous : observations > 0);
+        return observations;
+      });
+    } else {
+      setApiConnected(false);
+      setIsIngesting(false);
     }
 
     setRows(payload.nodes);
@@ -442,6 +470,8 @@ function App() {
         await refreshNodes();
       } catch (error) {
         console.error(error);
+        setApiConnected(false);
+        setIsIngesting(false);
         setLoadError(
           "Could not load nodes from API. Verify meshweather-ingestor is running and API URL is correct.",
         );
@@ -457,6 +487,8 @@ function App() {
           await refreshNodes();
         } catch (error) {
           console.error(error);
+          setApiConnected(false);
+          setIsIngesting(false);
           setLoadError(
             "Could not refresh nodes from API. Verify meshweather-ingestor API connectivity.",
           );
@@ -475,6 +507,8 @@ function App() {
       await refreshNodes();
     } catch (error) {
       console.error(error);
+      setApiConnected(false);
+      setIsIngesting(false);
       setLoadError(
         "Could not refresh nodes from API. Verify meshweather-ingestor API connectivity.",
       );
@@ -517,6 +551,17 @@ function App() {
           </button>
           <p className="status">Last update: {lastUpdatedLabel}</p>
           <p className="status">Auto-refresh: every 30 seconds</p>
+          <p
+            className={`status-pill ${
+              !apiConnected ? "is-offline" : isIngesting ? "is-ingesting" : "is-connected"
+            }`}
+          >
+            {!apiConnected
+              ? "Ingestor API disconnected"
+              : isIngesting
+                ? `Connected: ingesting telemetry (${observationCount ?? 0} observations)`
+                : `Connected: waiting for new telemetry (${observationCount ?? 0} observations)`}
+          </p>
 
           <div className="unit-toggle" role="group" aria-label="Unit system">
             <button
