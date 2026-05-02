@@ -4,11 +4,12 @@ services:
     pull_policy: always
     container_name: meshweather-ingestor
     environment:
-      MESHWEATHER_HOST: ${MESHWEATHER_HOST:-host.docker.internal}
+      MESHTASTIC_NODE_IP: ${MESHTASTIC_NODE_IP:-host.docker.internal}
       MESHWEATHER_PORT: ${MESHWEATHER_PORT:-4403}
-      MESHWEATHER_DB_PATH: /app/data/meshweather.db
-      MESHWEATHER_API_HOST: 0.0.0.0
-      MESHWEATHER_API_PORT: 8080
+      MESHWEATHER_DB_PATH: ${MESHWEATHER_DB_PATH:-/app/data/meshweather.db}
+      MESHWEATHER_API_ENABLED: ${MESHWEATHER_API_ENABLED:-true}
+      MESHWEATHER_API_HOST: ${MESHWEATHER_API_HOST:-0.0.0.0}
+      MESHWEATHER_API_PORT: ${MESHWEATHER_API_PORT:-8080}
       MESHWEATHER_LOG_LEVEL: ${MESHWEATHER_LOG_LEVEL:-INFO}
     expose:
       - "8080"

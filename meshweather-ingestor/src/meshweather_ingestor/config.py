@@ -49,8 +49,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "--host",
-        default=os.getenv("MESHWEATHER_HOST"),
-        help="Meshtastic node hostname or IP. Can also be set by MESHWEATHER_HOST.",
+        default=os.getenv("MESHTASTIC_NODE_IP", os.getenv("MESHWEATHER_HOST")),
+        help="Meshtastic node hostname or IP. Can also be set by MESHTASTIC_NODE_IP.",
     )
     parser.add_argument(
         "--port",
@@ -102,7 +102,7 @@ def load_config(argv: Optional[Sequence[str]] = None) -> IngestorConfig:
         parser.error("--api-only cannot be combined with --disable-api.")
 
     if not args.api_only and not args.host:
-        parser.error("--host is required (or set MESHWEATHER_HOST).")
+        parser.error("--host is required (or set MESHTASTIC_NODE_IP).")
 
     log_level = str(args.log_level).upper()
     if log_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:

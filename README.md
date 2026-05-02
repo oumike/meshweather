@@ -16,7 +16,7 @@ This workspace includes one container for each project and a single compose file
 1. Set Meshtastic host (required for ingestion mode):
 
 ```bash
-export MESHWEATHER_HOST=192.168.1.50
+export MESHTASTIC_NODE_IP=192.168.1.50
 ```
 
 2. Start both services:
@@ -75,7 +75,7 @@ Steps on Pi:
 3. Set Meshtastic host:
 
 ```bash
-export MESHWEATHER_HOST=<meshtastic-node-ip>
+export MESHTASTIC_NODE_IP=<meshtastic-node-ip>
 ```
 
 4. Start services:

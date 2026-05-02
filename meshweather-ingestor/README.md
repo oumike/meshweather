@@ -57,7 +57,7 @@ CLI options:
 
 Environment variables (optional):
 
-- `MESHWEATHER_HOST`
+- `MESHTASTIC_NODE_IP`
 - `MESHWEATHER_PORT`
 - `MESHWEATHER_DB_PATH`
 - `MESHWEATHER_LOG_LEVEL`
@@ -77,7 +77,7 @@ Build and run this project directly:
 ```bash
 docker build -t meshweather-ingestor .
 docker run --rm -p 18080:8080 \
-	-e MESHWEATHER_HOST=192.168.1.50 \
+	-e MESHTASTIC_NODE_IP=192.168.1.50 \
 	-e MESHWEATHER_API_HOST=0.0.0.0 \
 	-v meshweather_data:/app/data \
 	meshweather-ingestor
