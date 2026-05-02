@@ -63,3 +63,28 @@ If packages are private, authenticate first:
 ```bash
 echo "$GITHUB_TOKEN" | docker login ghcr.io -u oumike --password-stdin
 ```
+
+## Raspberry Pi 5
+
+Raspberry Pi 5 uses `linux/arm64`. The publish workflow now pushes multi-arch images (`linux/amd64` and `linux/arm64`) so the Pi will pull the correct image automatically.
+
+Steps on Pi:
+
+1. Install Docker + Docker Compose plugin.
+2. Clone this repo.
+3. Set Meshtastic host:
+
+```bash
+export MESHWEATHER_HOST=<meshtastic-node-ip>
+```
+
+4. Start services:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+5. Open frontend:
+
+- `http://<pi-ip>:10090`
