@@ -26,6 +26,12 @@ docker compose -f "$COMPOSE_FILE" config >/dev/null
 echo "Pulling latest images..."
 docker compose -f "$COMPOSE_FILE" pull
 
+echo "Stopping existing containers (if running)..."
+docker compose -f "$COMPOSE_FILE" stop meshweather-frontend meshweather-ingestor || true
+
+echo "Removing existing containers (if present)..."
+docker compose -f "$COMPOSE_FILE" rm -f meshweather-frontend meshweather-ingestor || true
+
 echo "Recreating containers..."
 docker compose -f "$COMPOSE_FILE" up -d --force-recreate
 
