@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/docker-compose.yml}"
+ENV_FILE="${ENV_FILE:-$ROOT_DIR/meshweather-ingestor/.env}"
 TAIL_LINES="${TAIL_LINES:-120}"
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -20,31 +21,38 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   exit 1
 fi
 
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "Error: env file not found at $ENV_FILE" >&2
+  exit 1
+fi
+
+COMPOSE_CMD=(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
+
 echo "Validating compose config..."
-docker compose -f "$COMPOSE_FILE" config >/dev/null
+"${COMPOSE_CMD[@]}" config >/dev/null
 
 echo "Pulling latest images..."
-docker compose -f "$COMPOSE_FILE" pull
+"${COMPOSE_CMD[@]}" pull
 
 echo "Stopping existing containers (if running)..."
-docker compose -f "$COMPOSE_FILE" stop meshweather-frontend meshweather-ingestor || true
+"${COMPOSE_CMD[@]}" stop meshweather-frontend meshweather-ingestor || true
 
 echo "Removing existing containers (if present)..."
-docker compose -f "$COMPOSE_FILE" rm -f meshweather-frontend meshweather-ingestor || true
+"${COMPOSE_CMD[@]}" rm -f meshweather-frontend meshweather-ingestor || true
 
 echo "Recreating containers..."
-docker compose -f "$COMPOSE_FILE" up -d --force-recreate
+"${COMPOSE_CMD[@]}" up -d --force-recreate
 
 echo "Current container status:"
-docker compose -f "$COMPOSE_FILE" ps
+"${COMPOSE_CMD[@]}" ps
 
 echo
 echo "Recent ingestor logs (last $TAIL_LINES lines):"
-docker compose -f "$COMPOSE_FILE" logs meshweather-ingestor --tail="$TAIL_LINES"
+"${COMPOSE_CMD[@]}" logs meshweather-ingestor --tail="$TAIL_LINES"
 
 echo
 echo "Recent frontend logs (last $TAIL_LINES lines):"
-docker compose -f "$COMPOSE_FILE" logs meshweather-frontend --tail="$TAIL_LINES"
+"${COMPOSE_CMD[@]}" logs meshweather-frontend --tail="$TAIL_LINES"
 
 echo
 echo "Done. Frontend should be available at http://localhost:${MESHWEATHER_FRONTEND_PORT:-10090}"
