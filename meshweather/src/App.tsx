@@ -403,11 +403,11 @@ function App() {
   }, [listedLocatedNodes, searchQuery, sortOrder]);
 
   const mapCenter = useMemo<[number, number]>(() => {
-    if (locatedNodes.length === 0) {
+    if (listedLocatedNodes.length === 0) {
       return FALLBACK_CENTER;
     }
 
-    const sum = locatedNodes.reduce(
+    const sum = listedLocatedNodes.reduce(
       (acc, node) => {
         acc.lat += node.latitude;
         acc.lon += node.longitude;
@@ -416,10 +416,13 @@ function App() {
       { lat: 0, lon: 0 },
     );
 
-    return [sum.lat / locatedNodes.length, sum.lon / locatedNodes.length];
-  }, [locatedNodes]);
+    return [
+      sum.lat / listedLocatedNodes.length,
+      sum.lon / listedLocatedNodes.length,
+    ];
+  }, [listedLocatedNodes]);
 
-  const mapZoom = locatedNodes.length > 0 ? 6 : 4;
+  const mapZoom = listedLocatedNodes.length > 0 ? 6 : 4;
 
   const refreshNodes = useCallback(async () => {
     setIsLoading(true);
@@ -598,7 +601,7 @@ function App() {
 
       <main className="content-grid">
         <section className="map-panel">
-          {locatedNodes.length > 0 ? (
+          {listedLocatedNodes.length > 0 ? (
             <MapContainer
               center={mapCenter}
               zoom={mapZoom}
@@ -611,7 +614,7 @@ function App() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
 
-              {locatedNodes.map((node) => (
+              {listedLocatedNodes.map((node) => (
                 <Marker
                   key={node.node_key}
                   position={[node.latitude, node.longitude]}
