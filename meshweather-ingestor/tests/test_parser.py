@@ -82,7 +82,7 @@ def test_parse_weather_observation_snake_case() -> None:
     assert observation.uv_lux == 0.4
 
 
-def test_parse_weather_observation_non_telemetry_is_ignored() -> None:
+def test_parse_weather_observation_non_telemetry_is_kept() -> None:
     packet = {
         "from": 1,
         "id": 2,
@@ -98,4 +98,31 @@ def test_parse_weather_observation_non_telemetry_is_ignored() -> None:
 
     observation = parse_weather_observation(packet)
 
-    assert observation is None
+    assert observation is not None
+    assert observation.packet_from == 1
+    assert observation.packet_id == 2
+    assert observation.temperature_c == 25.0
+
+
+def test_parse_weather_observation_position_packet() -> None:
+    packet = {
+        "from": 555,
+        "fromId": "!0000022b",
+        "id": 77,
+        "decoded": {
+            "portnum": "POSITION_APP",
+            "position": {
+                "latitudeI": 412345678,
+                "longitudeI": -861234567,
+            },
+        },
+    }
+
+    observation = parse_weather_observation(packet)
+
+    assert observation is not None
+    assert observation.packet_from == 555
+    assert observation.packet_from_id == "!0000022b"
+    assert observation.packet_id == 77
+    assert observation.node_latitude == 41.2345678
+    assert observation.node_longitude == -86.1234567

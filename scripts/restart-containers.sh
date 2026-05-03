@@ -6,6 +6,34 @@ COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/docker-compose.yml}"
 ENV_FILE="${ENV_FILE:-$ROOT_DIR/meshweather-ingestor/.env}"
 TAIL_LINES="${TAIL_LINES:-120}"
 
+show_help() {
+  cat <<'EOF'
+Restart meshweather containers with latest images, using an env file.
+
+Usage:
+  scripts/restart-containers.sh [options]
+
+Options:
+  -h, --help    Show this help message and exit.
+
+Environment overrides:
+  COMPOSE_FILE  Path to compose file (default: <repo>/docker-compose.yml)
+  ENV_FILE      Path to env file (default: <repo>/meshweather-ingestor/.env)
+  TAIL_LINES    Number of log lines to show per service (default: 120)
+EOF
+}
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  show_help
+  exit 0
+fi
+
+if [[ $# -gt 0 ]]; then
+  echo "Error: unknown argument '$1'" >&2
+  echo "Run with --help for usage." >&2
+  exit 1
+fi
+
 if ! command -v docker >/dev/null 2>&1; then
   echo "Error: docker is not installed or not on PATH." >&2
   exit 1

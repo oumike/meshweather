@@ -52,6 +52,7 @@ class MeshweatherIngestor:
         self.port = port
         self.repository = repository
         self._stop_event = threading.Event()
+        self._reconnect_event = threading.Event()
         self._interface_lock = threading.Lock()
         self._interface: meshtastic.tcp_interface.TCPInterface | None = None
 
@@ -63,21 +64,46 @@ class MeshweatherIngestor:
         pub.subscribe(self._on_connection_lost, "meshtastic.connection.lost")
 
         try:
-            interface = meshtastic.tcp_interface.TCPInterface(
-                hostname=self.host,
-                portNumber=self.port,
-            )
-            with self._interface_lock:
-                self._interface = interface
+            while not self._stop_event.is_set():
+                self._reconnect_event.clear()
 
-            while not self._stop_event.wait(1.0):
-                pass
+                try:
+                    logger.info("Attempting Meshtastic connection to %s:%s", self.host, self.port)
+                    interface = meshtastic.tcp_interface.TCPInterface(
+                        hostname=self.host,
+                        portNumber=self.port,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Meshtastic connect failed (%s). Retrying in 5 seconds.",
+                        exc,
+                    )
+                    if self._stop_event.wait(5.0):
+                        break
+                    continue
+
+                with self._interface_lock:
+                    self._interface = interface
+
+                # Wait until stop is requested or the connection is reported lost.
+                while not self._stop_event.is_set() and not self._reconnect_event.wait(1.0):
+                    pass
+
+                self._close_interface()
+
+                if self._stop_event.is_set():
+                    break
+
+                logger.info("Meshtastic connection lost; reconnecting in 2 seconds.")
+                if self._stop_event.wait(2.0):
+                    break
         finally:
             self._unsubscribe_handlers()
             self._close_interface()
 
     def stop(self) -> None:
         self._stop_event.set()
+        self._reconnect_event.set()
         self._close_interface()
 
     def _close_interface(self) -> None:
@@ -108,6 +134,7 @@ class MeshweatherIngestor:
 
     def _on_connection_lost(self, interface: Any) -> None:
         logger.warning("Lost connection to Meshtastic node")
+        self._reconnect_event.set()
 
     def _on_receive(self, packet: Mapping[str, Any], interface: Any) -> None:
         observation = parse_weather_observation(packet)
@@ -121,13 +148,13 @@ class MeshweatherIngestor:
 
         if inserted:
             logger.info(
-                "Stored weather telemetry from=%s packet_id=%s",
+                "Stored packet from=%s packet_id=%s",
                 source,
                 observation.packet_id,
             )
         else:
             logger.debug(
-                "Skipped duplicate weather telemetry from=%s packet_id=%s",
+                "Skipped duplicate packet from=%s packet_id=%s",
                 source,
                 observation.packet_id,
             )
