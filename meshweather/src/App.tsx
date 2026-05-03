@@ -5,14 +5,17 @@ import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import type {
   ApiNodeObservation,
   ApiNodesResponse,
+  ApiObservationsResponse,
   NodeWeatherSummary,
 } from "./types";
 import "./App.css";
 
 const FALLBACK_CENTER: [number, number] = [39.8283, -98.5795];
 const API_NODES_ENDPOINT = "/api/nodes?limit=1000";
+const API_OBSERVATIONS_ENDPOINT = "/api/observations?limit=50";
 const API_HEALTH_ENDPOINT = "/health";
 const AUTO_REFRESH_MS = 30_000;
+const LOG_PAGE_SIZE = 10;
 type UnitSystem = "metric" | "imperial";
 type NodeListSort =
   | "name-asc"
@@ -341,6 +344,11 @@ function App() {
   const [mapFocusTarget, setMapFocusTarget] = useState<MapFocusTarget | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<NodeListSort>("name-asc");
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [isLogLoading, setIsLogLoading] = useState(false);
+  const [logError, setLogError] = useState<string>("");
+  const [logRows, setLogRows] = useState<ApiNodeObservation[]>([]);
+  const [logPage, setLogPage] = useState(0);
 
   useEffect(() => {
     try {
@@ -349,6 +357,23 @@ function App() {
       // Ignore storage access issues.
     }
   }, [unitSystem]);
+
+  useEffect(() => {
+    if (!isLogModalOpen) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsLogModalOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isLogModalOpen]);
 
   const locatedNodes = useMemo(() => buildNodeCollections(rows), [rows]);
 
@@ -401,6 +426,16 @@ function App() {
 
     return sorted;
   }, [listedLocatedNodes, searchQuery, sortOrder]);
+
+  const logPageCount = useMemo(
+    () => Math.max(1, Math.ceil(logRows.length / LOG_PAGE_SIZE)),
+    [logRows],
+  );
+
+  const visibleLogRows = useMemo(() => {
+    const start = logPage * LOG_PAGE_SIZE;
+    return logRows.slice(start, start + LOG_PAGE_SIZE);
+  }, [logPage, logRows]);
 
   const mapCenter = useMemo<[number, number]>(() => {
     if (listedLocatedNodes.length === 0) {
@@ -519,6 +554,33 @@ function App() {
     }
   }
 
+  async function onOpenLogModal(): Promise<void> {
+    setIsLogModalOpen(true);
+    setIsLogLoading(true);
+    setLogError("");
+    setLogPage(0);
+
+    try {
+      const response = await fetch(API_OBSERVATIONS_ENDPOINT);
+      if (!response.ok) {
+        throw new Error(`Request failed (${response.status})`);
+      }
+
+      const payload = (await response.json()) as ApiObservationsResponse;
+      if (!Array.isArray(payload.observations)) {
+        throw new Error("API response missing observations array");
+      }
+
+      setLogRows(payload.observations);
+    } catch (error) {
+      console.error(error);
+      setLogRows([]);
+      setLogError("Could not load the recent ingested messages.");
+    } finally {
+      setIsLogLoading(false);
+    }
+  }
+
   const lastUpdatedLabel = useMemo(() => {
     if (!lastUpdatedAt) {
       return "n/a";
@@ -591,6 +653,15 @@ function App() {
             <div>
               <strong>{listedLocatedNodes.length}</strong>
               <span>nodes from API</span>
+              <button
+                type="button"
+                className="stats-log-button"
+                onClick={() => {
+                  void onOpenLogModal();
+                }}
+              >
+                Log
+              </button>
             </div>
           </div>
 
@@ -749,6 +820,91 @@ function App() {
 
         </aside>
       </main>
+
+      {isLogModalOpen ? (
+        <div
+          className="log-modal-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsLogModalOpen(false);
+            }
+          }}
+        >
+          <section
+            className="log-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="log-modal-title"
+          >
+            <header className="log-modal-header">
+              <h2 id="log-modal-title">Recent Ingested Messages</h2>
+              <button
+                type="button"
+                className="log-modal-close"
+                onClick={() => setIsLogModalOpen(false)}
+              >
+                Close
+              </button>
+            </header>
+
+            <div className="log-modal-body">
+              {isLogLoading ? <p className="status">Loading logs...</p> : null}
+              {!isLogLoading && logError ? <p className="error">{logError}</p> : null}
+              {!isLogLoading && !logError && logRows.length === 0 ? (
+                <p className="status">No ingested messages found.</p>
+              ) : null}
+
+              {!isLogLoading && !logError && visibleLogRows.length > 0 ? (
+                <ul className="log-message-list">
+                  {visibleLogRows.map((row) => {
+                    const telemetryLines = buildTelemetryLines(row, unitSystem);
+
+                    return (
+                      <li key={row.id}>
+                        <p className="log-message-title">
+                          <strong>{getNodeLabel(row)}</strong>
+                          <span>{formatTimestamp(row)}</span>
+                        </p>
+                        <p className="log-message-meta">
+                          packet_id={row.packet_id ?? "n/a"} | node_key={row.node_key}
+                        </p>
+                        <p className="log-message-lines">
+                          {telemetryLines.length > 0
+                            ? telemetryLines.join(" | ")
+                            : "No environment telemetry values in this message."}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </div>
+
+            <footer className="log-modal-footer">
+              <button
+                type="button"
+                onClick={() => setLogPage((page) => Math.max(0, page - 1))}
+                disabled={isLogLoading || logPage === 0}
+              >
+                Previous
+              </button>
+              <p>
+                Page {Math.min(logPage + 1, logPageCount)} of {logPageCount}
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setLogPage((page) => Math.min(logPageCount - 1, page + 1))
+                }
+                disabled={isLogLoading || logPage >= logPageCount - 1}
+              >
+                Next
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

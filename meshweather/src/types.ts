@@ -33,6 +33,11 @@ export interface ApiNodesResponse {
   nodes: WeatherRow[];
 }
 
+export interface ApiObservationsResponse {
+  count: number;
+  observations: WeatherRow[];
+}
+
 export type ApiNodeObservation = WeatherRow;
 
 export interface NodeWeatherSummary {
