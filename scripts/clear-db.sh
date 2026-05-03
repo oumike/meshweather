@@ -94,8 +94,10 @@ cur.execute("SELECT COUNT(*) FROM weather_telemetry")
 before = int(cur.fetchone()[0])
 
 cur.execute("DELETE FROM weather_telemetry")
-cur.execute("VACUUM")
 con.commit()
+
+# VACUUM must run outside a transaction in SQLite.
+con.execute("VACUUM")
 
 cur.execute("SELECT COUNT(*) FROM weather_telemetry")
 after = int(cur.fetchone()[0])
