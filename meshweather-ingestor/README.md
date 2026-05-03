@@ -46,7 +46,7 @@ Node keys are API-stable IDs, for example:
 
 CLI options:
 
-- `--host` Meshtastic node hostname or IP (required if env var not set)
+- `--host` Meshtastic node hostname or IP (optional when API is enabled)
 - `--port` TCP port, default `4403`
 - `--db-path` SQLite file path, default `data/meshweather.db`
 - `--log-level` `DEBUG|INFO|WARNING|ERROR`, default `INFO`
@@ -64,6 +64,12 @@ Environment variables (optional):
 - `MESHWEATHER_API_ENABLED`
 - `MESHWEATHER_API_HOST`
 - `MESHWEATHER_API_PORT`
+
+The ingestor auto-loads a `.env` file when present. To point at a specific file,
+set `MESHWEATHER_ENV_FILE=/absolute/path/to/.env`.
+
+If no host is configured (via flag or env var) and API is enabled, the service starts
+in API-only mode instead of failing.
 
 ## Notes
 
@@ -84,3 +90,4 @@ docker run --rm -p 18080:8080 \
 ```
 
 Or run both frontend + ingestor from the workspace root using `docker compose up --build`.
+The compose service reads ingestor settings from `meshweather-ingestor/.env`.

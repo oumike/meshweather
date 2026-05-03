@@ -1,8 +1,17 @@
 import argparse
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Sequence
+
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - fallback for environments not yet refreshed
+    load_dotenv = None
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -15,6 +24,87 @@ class IngestorConfig:
     api_host: str
     api_port: int
     api_only: bool
+
+
+_ENV_LOADED = False
+
+
+def _load_simple_dotenv(path: Path) -> None:
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
+
+        if "=" not in line:
+            continue
+
+        name, value = line.split("=", 1)
+        name = name.strip()
+        if not name:
+            continue
+
+        value = value.strip()
+        quoted = (
+            len(value) >= 2
+            and value[0] in {'"', "'"}
+            and value[-1] == value[0]
+        )
+        if quoted:
+            value = value[1:-1]
+        else:
+            value = value.split(" #", 1)[0].rstrip()
+
+        os.environ.setdefault(name, value)
+
+
+def _load_dotenv_candidate(path: Path) -> None:
+    if load_dotenv is not None:
+        load_dotenv(dotenv_path=path, override=False)
+        return
+
+    _load_simple_dotenv(path)
+    logger.warning(
+        "python-dotenv not installed; using built-in .env parser for %s",
+        path,
+    )
+
+
+def _load_env_file() -> None:
+    global _ENV_LOADED
+    if _ENV_LOADED:
+        return
+
+    env_file = os.getenv("MESHWEATHER_ENV_FILE")
+    candidates: list[Path]
+
+    if env_file:
+        resolved = Path(env_file).expanduser()
+        if not resolved.is_file():
+            raise FileNotFoundError(
+                f"MESHWEATHER_ENV_FILE points to a missing file: {resolved}"
+            )
+        candidates = [resolved]
+    else:
+        candidates = [
+            Path.cwd() / ".env",
+            Path.cwd() / "meshweather-ingestor" / ".env",
+            Path(__file__).resolve().parents[2] / ".env",
+        ]
+
+    for candidate in candidates:
+        if candidate.is_file():
+            _load_dotenv_candidate(candidate)
+            _ENV_LOADED = True
+            return
+
+    # Final fallback to python-dotenv default search behavior.
+    if load_dotenv is not None:
+        load_dotenv(override=False)
+
+    _ENV_LOADED = True
 
 
 def _read_env_int(name: str, default: int) -> int:
@@ -50,7 +140,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--host",
         default=os.getenv("MESHTASTIC_NODE_IP", os.getenv("MESHWEATHER_HOST")),
-        help="Meshtastic node hostname or IP. Can also be set by MESHTASTIC_NODE_IP.",
+        help=(
+            "Meshtastic node hostname or IP. Can also be set by MESHTASTIC_NODE_IP. "
+            "If omitted and API is enabled, runs in API-only mode."
+        ),
     )
     parser.add_argument(
         "--port",
@@ -95,26 +188,34 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def load_config(argv: Optional[Sequence[str]] = None) -> IngestorConfig:
+    _load_env_file()
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    host = str(args.host).strip() if args.host else None
 
     if args.api_only and args.disable_api:
         parser.error("--api-only cannot be combined with --disable-api.")
 
-    if not args.api_only and not args.host:
-        parser.error("--host is required (or set MESHTASTIC_NODE_IP).")
+    if not args.api_only and args.disable_api and host is None:
+        parser.error(
+            "--disable-api requires --host (or MESHTASTIC_NODE_IP) for ingestion mode."
+        )
+
+    # If host is not configured, fall back to API-only mode instead of hard failing.
+    api_only = bool(args.api_only or host is None)
 
     log_level = str(args.log_level).upper()
     if log_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
         parser.error("--log-level must be one of DEBUG, INFO, WARNING, ERROR, CRITICAL.")
 
     return IngestorConfig(
-        host=str(args.host) if args.host else None,
+        host=host,
         port=int(args.port),
         db_path=Path(args.db_path),
         log_level=log_level,
         api_enabled=not bool(args.disable_api),
         api_host=str(args.api_host),
         api_port=int(args.api_port),
-        api_only=bool(args.api_only),
+        api_only=api_only,
     )

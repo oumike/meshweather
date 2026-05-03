@@ -52,7 +52,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             app = create_api_app(repository)
             logger.info("Starting API on http://%s:%s", config.api_host, config.api_port)
             if config.api_only:
-                logger.info("Running in API-only mode (no Meshtastic TCP connection)")
+                if config.host is None:
+                    logger.info(
+                        "Running in API-only mode: Meshtastic host is not configured "
+                        "(set MESHTASTIC_NODE_IP or use --host)."
+                    )
+                else:
+                    logger.info("Running in API-only mode (no Meshtastic TCP connection)")
 
             server = uvicorn.Server(
                 uvicorn.Config(

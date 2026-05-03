@@ -54,6 +54,82 @@ def test_insert_and_deduplicate(tmp_path: Path) -> None:
     row = cursor.fetchone()
     assert tuple(row) == ("Backyard Weather", "WXBY", 41.2345, -86.1234)
 
+    cursor = repo._conn.execute(
+        "SELECT node_key, node_long_name FROM discovered_nodes LIMIT 1"
+    )
+    discovered = cursor.fetchone()
+    assert tuple(discovered) == ("id:!00000064", "Backyard Weather")
+
+    repo.close()
+
+
+def test_duplicate_packet_updates_discovered_node_metadata(tmp_path: Path) -> None:
+    db_path = tmp_path / "meshweather.db"
+    repo = SqliteWeatherRepository(db_path)
+
+    packet = {
+        "decoded": {
+            "portnum": "TELEMETRY_APP",
+            "telemetry": {"environmentMetrics": {"temperature": 20.5}},
+        },
+    }
+
+    first = WeatherObservation(
+        packet_from=777,
+        packet_from_id="!00000309",
+        node_long_name=None,
+        node_short_name="WX77",
+        node_latitude=None,
+        node_longitude=None,
+        packet_id=500,
+        packet_rx_time=1714577000,
+        telemetry_time=1714576999,
+        temperature_c=20.5,
+        relative_humidity=50.0,
+        barometric_pressure_hpa=1009.5,
+        wind_direction_deg=None,
+        wind_speed_m_s=None,
+        wind_gust_m_s=None,
+        wind_lull_m_s=None,
+        rainfall_1h_mm=None,
+        rainfall_24h_mm=None,
+        lux=None,
+        uv_lux=None,
+    )
+
+    second_same_packet = WeatherObservation(
+        packet_from=777,
+        packet_from_id="!00000309",
+        node_long_name="Backyard South",
+        node_short_name="WX77",
+        node_latitude=41.0001,
+        node_longitude=-86.0001,
+        packet_id=500,
+        packet_rx_time=1714577001,
+        telemetry_time=1714577000,
+        temperature_c=21.0,
+        relative_humidity=51.0,
+        barometric_pressure_hpa=1010.1,
+        wind_direction_deg=None,
+        wind_speed_m_s=None,
+        wind_gust_m_s=None,
+        wind_lull_m_s=None,
+        rainfall_1h_mm=None,
+        rainfall_24h_mm=None,
+        lux=None,
+        uv_lux=None,
+    )
+
+    assert repo.insert_observation(first, packet) is True
+    assert repo.insert_observation(second_same_packet, packet) is False
+    assert repo.count_observations() == 1
+
+    latest_nodes = repo.fetch_latest_nodes(limit=10)
+    node = next(n for n in latest_nodes if n["node_key"] == "id:!00000309")
+    assert node["node_long_name"] == "Backyard South"
+    assert node["node_latitude"] == 41.0001
+    assert node["node_longitude"] == -86.0001
+
     repo.close()
 
 
@@ -137,16 +213,44 @@ def test_fetch_latest_nodes_and_history(tmp_path: Path) -> None:
         uv_lux=0.2,
     )
 
+    node_c_discovered_only = WeatherObservation(
+        packet_from=333,
+        packet_from_id="!0000014d",
+        node_long_name="Garden Relay",
+        node_short_name="WXGD",
+        node_latitude=39.9999,
+        node_longitude=-85.9999,
+        packet_id=404,
+        packet_rx_time=1714578600,
+        telemetry_time=None,
+        temperature_c=None,
+        relative_humidity=None,
+        barometric_pressure_hpa=None,
+        wind_direction_deg=None,
+        wind_speed_m_s=None,
+        wind_gust_m_s=None,
+        wind_lull_m_s=None,
+        rainfall_1h_mm=None,
+        rainfall_24h_mm=None,
+        lux=None,
+        uv_lux=None,
+    )
+
     assert repo.insert_observation(node_a_old, packet)
     assert repo.insert_observation(node_a_new, packet)
     assert repo.insert_observation(node_b, packet)
+    assert repo.insert_observation(node_c_discovered_only, packet)
 
     latest_nodes = repo.fetch_latest_nodes(limit=10)
-    assert len(latest_nodes) == 2
+    assert len(latest_nodes) == 3
 
     node_a_summary = next(n for n in latest_nodes if n["node_key"] == "id:!00000064")
     assert node_a_summary["packet_id"] == 202
     assert node_a_summary["temperature_c"] == 21.1
+
+    node_c_summary = next(n for n in latest_nodes if n["node_key"] == "id:!0000014d")
+    assert node_c_summary["node_long_name"] == "Garden Relay"
+    assert node_c_summary["temperature_c"] is None
 
     node_a_history = repo.fetch_node_history("id:!00000064", limit=10)
     assert len(node_a_history) == 2
@@ -155,6 +259,7 @@ def test_fetch_latest_nodes_and_history(tmp_path: Path) -> None:
 
     recent = repo.fetch_recent_observations(limit=2)
     assert len(recent) == 2
-    assert recent[0]["packet_id"] == 303
+    assert recent[0]["packet_id"] == 404
+    assert recent[1]["packet_id"] == 303
 
     repo.close()

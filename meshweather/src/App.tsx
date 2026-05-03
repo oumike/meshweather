@@ -334,7 +334,7 @@ function App() {
   const [rows, setRows] = useState<ApiNodeObservation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string>("");
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
   const [apiConnected, setApiConnected] = useState(false);
   const [isIngesting, setIsIngesting] = useState(false);
   const [observationCount, setObservationCount] = useState<number | null>(null);
@@ -344,10 +344,14 @@ function App() {
   const [mapFocusTarget, setMapFocusTarget] = useState<MapFocusTarget | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<NodeListSort>("name-asc");
+  const [showTelemetryOnly, setShowTelemetryOnly] = useState(false);
+  const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
+  const [isNodesModalOpen, setIsNodesModalOpen] = useState(false);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [isLogLoading, setIsLogLoading] = useState(false);
   const [logError, setLogError] = useState<string>("");
   const [logRows, setLogRows] = useState<ApiNodeObservation[]>([]);
+  const [showLogTelemetryOnly, setShowLogTelemetryOnly] = useState(false);
   const [logPage, setLogPage] = useState(0);
 
   useEffect(() => {
@@ -359,13 +363,14 @@ function App() {
   }, [unitSystem]);
 
   useEffect(() => {
-    if (!isLogModalOpen) {
+    if (!isLogModalOpen && !isNodesModalOpen) {
       return;
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsLogModalOpen(false);
+        setIsNodesModalOpen(false);
       }
     };
 
@@ -373,50 +378,71 @@ function App() {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [isLogModalOpen]);
+  }, [isLogModalOpen, isNodesModalOpen]);
 
-  const locatedNodes = useMemo(() => buildNodeCollections(rows), [rows]);
+  const discoveredNodes = useMemo(() => {
+    const sorted = [...rows];
+    sorted.sort((left, right) => getNodeLabel(left).localeCompare(getNodeLabel(right)));
+    return sorted;
+  }, [rows]);
 
-  const listedLocatedNodes = useMemo(
-    () => locatedNodes.filter((node) => hasEnvironmentTelemetry(node.latest)),
-    [locatedNodes],
+  const mapNodes = useMemo(
+    () =>
+      buildNodeCollections(
+        discoveredNodes.filter((node) => hasEnvironmentTelemetry(node)),
+      ),
+    [discoveredNodes],
   );
 
   const visibleNodeList = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
+    const telemetryScoped = showTelemetryOnly
+      ? discoveredNodes.filter((node) => hasEnvironmentTelemetry(node))
+      : discoveredNodes;
+
     const filtered = normalizedQuery
-      ? listedLocatedNodes.filter((node) => {
-          const longName = node.latest.node_long_name?.toLowerCase() ?? "";
-          const shortName = node.latest.node_short_name?.toLowerCase() ?? "";
+      ? telemetryScoped.filter((node) => {
+          const longName = node.node_long_name?.toLowerCase() ?? "";
+          const shortName = node.node_short_name?.toLowerCase() ?? "";
+          const label = getNodeLabel(node).toLowerCase();
+          const packetFromId = node.packet_from_id?.toLowerCase() ?? "";
           return (
+            label.includes(normalizedQuery) ||
             longName.includes(normalizedQuery) ||
-            shortName.includes(normalizedQuery)
+            shortName.includes(normalizedQuery) ||
+            packetFromId.includes(normalizedQuery)
           );
         })
-      : listedLocatedNodes;
+      : telemetryScoped;
 
     const sorted = [...filtered];
     sorted.sort((left, right) => {
+      const leftHasTelemetry = hasEnvironmentTelemetry(left);
+      const rightHasTelemetry = hasEnvironmentTelemetry(right);
+      if (leftHasTelemetry !== rightHasTelemetry) {
+        return leftHasTelemetry ? -1 : 1;
+      }
+
       switch (sortOrder) {
         case "name-asc":
-          return getCompactNodeHeader(left.latest).localeCompare(
-            getCompactNodeHeader(right.latest),
+          return getCompactNodeHeader(left).localeCompare(
+            getCompactNodeHeader(right),
           );
         case "name-desc":
-          return getCompactNodeHeader(right.latest).localeCompare(
-            getCompactNodeHeader(left.latest),
+          return getCompactNodeHeader(right).localeCompare(
+            getCompactNodeHeader(left),
           );
         case "recent-desc":
           return compareNullableNumber(
-            rowTimestampMs(left.latest),
-            rowTimestampMs(right.latest),
+            rowTimestampMs(left),
+            rowTimestampMs(right),
             "desc",
           );
         case "recent-asc":
           return compareNullableNumber(
-            rowTimestampMs(left.latest),
-            rowTimestampMs(right.latest),
+            rowTimestampMs(left),
+            rowTimestampMs(right),
             "asc",
           );
         default:
@@ -425,24 +451,34 @@ function App() {
     });
 
     return sorted;
-  }, [listedLocatedNodes, searchQuery, sortOrder]);
+  }, [discoveredNodes, searchQuery, showTelemetryOnly, sortOrder]);
 
-  const logPageCount = useMemo(
-    () => Math.max(1, Math.ceil(logRows.length / LOG_PAGE_SIZE)),
-    [logRows],
+  const filteredLogRows = useMemo(
+    () =>
+      showLogTelemetryOnly
+        ? logRows.filter((row) => hasEnvironmentTelemetry(row))
+        : logRows,
+    [logRows, showLogTelemetryOnly],
   );
 
+  const logPageCount = useMemo(
+    () => Math.max(1, Math.ceil(filteredLogRows.length / LOG_PAGE_SIZE)),
+    [filteredLogRows],
+  );
+
+  const effectiveLogPage = Math.min(logPage, Math.max(0, logPageCount - 1));
+
   const visibleLogRows = useMemo(() => {
-    const start = logPage * LOG_PAGE_SIZE;
-    return logRows.slice(start, start + LOG_PAGE_SIZE);
-  }, [logPage, logRows]);
+    const start = effectiveLogPage * LOG_PAGE_SIZE;
+    return filteredLogRows.slice(start, start + LOG_PAGE_SIZE);
+  }, [effectiveLogPage, filteredLogRows]);
 
   const mapCenter = useMemo<[number, number]>(() => {
-    if (listedLocatedNodes.length === 0) {
+    if (mapNodes.length === 0) {
       return FALLBACK_CENTER;
     }
 
-    const sum = listedLocatedNodes.reduce(
+    const sum = mapNodes.reduce(
       (acc, node) => {
         acc.lat += node.latitude;
         acc.lon += node.longitude;
@@ -452,12 +488,23 @@ function App() {
     );
 
     return [
-      sum.lat / listedLocatedNodes.length,
-      sum.lon / listedLocatedNodes.length,
+      sum.lat / mapNodes.length,
+      sum.lon / mapNodes.length,
     ];
-  }, [listedLocatedNodes]);
+  }, [mapNodes]);
 
-  const mapZoom = listedLocatedNodes.length > 0 ? 6 : 4;
+  const mapZoom = mapNodes.length > 0 ? 6 : 4;
+
+  const lastRefreshHint = useMemo(() => {
+    if (!lastRefreshedAt) {
+      return "Last refreshed: n/a";
+    }
+
+    return `Last refreshed: ${new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "medium",
+    }).format(new Date(lastRefreshedAt))}`;
+  }, [lastRefreshedAt]);
 
   const refreshNodes = useCallback(async () => {
     setIsLoading(true);
@@ -497,7 +544,7 @@ function App() {
     }
 
     setRows(payload.nodes);
-    setLastUpdatedAt(Date.now());
+    setLastRefreshedAt(Date.now());
     setLoadError("");
     setIsLoading(false);
   }, []);
@@ -519,6 +566,10 @@ function App() {
   }, [refreshNodes]);
 
   useEffect(() => {
+    if (!isAutoRefreshEnabled) {
+      return;
+    }
+
     const intervalId = window.setInterval(() => {
       void (async () => {
         try {
@@ -538,7 +589,7 @@ function App() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [refreshNodes]);
+  }, [refreshNodes, isAutoRefreshEnabled]);
 
   async function onManualRefresh(): Promise<void> {
     try {
@@ -555,6 +606,7 @@ function App() {
   }
 
   async function onOpenLogModal(): Promise<void> {
+    setIsNodesModalOpen(false);
     setIsLogModalOpen(true);
     setIsLogLoading(true);
     setLogError("");
@@ -581,88 +633,116 @@ function App() {
     }
   }
 
-  const lastUpdatedLabel = useMemo(() => {
-    if (!lastUpdatedAt) {
-      return "n/a";
-    }
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(lastUpdatedAt));
-  }, [lastUpdatedAt]);
+  function onOpenNodesModal(): void {
+    setIsLogModalOpen(false);
+    setIsNodesModalOpen(true);
+  }
 
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="title-block">
-          <p className="eyebrow">Meshweather Dashboard</p>
-          <h1>Node Weather Map</h1>
+          <div className="title-headline">
+            <h1>Mesh Weather Dashboard</h1>
+          </div>
           <p className="subtitle">
             Live weather map powered by meshweather-ingestor API. Each node appears as a
             pin when coordinates are available.
           </p>
+          <div className="camellia-drawing">
+            <img
+              className="camellia-logo"
+              src="/camellia-logo.svg"
+              alt="Mesh Weather camellia logo"
+            />
+          </div>
         </div>
 
         <div className="controls-card">
-          <button
-            type="button"
-            className="refresh-button"
-            onClick={() => {
-              void onManualRefresh();
-            }}
-            disabled={isLoading}
-          >
-            {isLoading ? "Refreshing..." : "Refresh"}
-          </button>
-          <p className="status">Last update: {lastUpdatedLabel}</p>
-          <p className="status">Auto-refresh: every 30 seconds</p>
-          <p
-            className={`status-pill ${
-              !apiConnected ? "is-offline" : isIngesting ? "is-ingesting" : "is-connected"
-            }`}
-          >
-            {!apiConnected
-              ? "Ingestor API disconnected"
-              : isIngesting
-                ? `Connected: ingesting telemetry (${observationCount ?? 0} observations)`
-                : `Connected: waiting for new telemetry (${observationCount ?? 0} observations)`}
-          </p>
-
-          <div className="unit-toggle" role="group" aria-label="Unit system">
-            <button
-              type="button"
-              className={unitSystem === "metric" ? "is-active" : ""}
-              onClick={() => setUnitSystem("metric")}
-            >
-              Metric
-            </button>
-            <button
-              type="button"
-              className={unitSystem === "imperial" ? "is-active" : ""}
-              onClick={() => setUnitSystem("imperial")}
-            >
-              Imperial
-            </button>
-          </div>
-
-          <div className="stats-row">
-            <div>
-              <strong>{listedLocatedNodes.length}</strong>
-              <span>mapped nodes</span>
-            </div>
-            <div>
-              <strong>{listedLocatedNodes.length}</strong>
-              <span>nodes from API</span>
+          <div className="controls-top-row">
+            <div className="controls-top-actions">
               <button
                 type="button"
-                className="stats-log-button"
+                className="refresh-button"
+                title={lastRefreshHint}
                 onClick={() => {
-                  void onOpenLogModal();
+                  void onManualRefresh();
                 }}
+                disabled={isLoading}
               >
-                Log
+                {isLoading ? "Refreshing..." : "Refresh"}
               </button>
+              <div className="unit-toggle" role="group" aria-label="Unit system">
+                <button
+                  type="button"
+                  className={unitSystem === "metric" ? "is-active" : ""}
+                  onClick={() => setUnitSystem("metric")}
+                >
+                  Metric
+                </button>
+                <button
+                  type="button"
+                  className={unitSystem === "imperial" ? "is-active" : ""}
+                  onClick={() => setUnitSystem("imperial")}
+                >
+                  Imperial
+                </button>
+              </div>
             </div>
+            <label
+              className="status controls-top-status auto-refresh-toggle"
+              htmlFor="auto-refresh-toggle"
+            >
+              <input
+                id="auto-refresh-toggle"
+                type="checkbox"
+                checked={isAutoRefreshEnabled}
+                onChange={(event) => setIsAutoRefreshEnabled(event.target.checked)}
+              />
+              Auto-refresh: every 30 seconds
+            </label>
+          </div>
+
+          <div className="stats-info">
+            <div className="stats-info-top">
+              <div className="stats-info-main">
+                <strong>{discoveredNodes.length}</strong>
+                <span>discovered nodes</span>
+              </div>
+              <div className="stats-action-buttons">
+                <button
+                  type="button"
+                  className="stats-log-button"
+                  onClick={() => {
+                    void onOpenLogModal();
+                  }}
+                >
+                  Log
+                </button>
+                <button
+                  type="button"
+                  className="stats-log-button"
+                  onClick={onOpenNodesModal}
+                >
+                  Nodes
+                </button>
+              </div>
+            </div>
+            <p
+              className={`status-pill ${
+                !apiConnected
+                  ? "is-offline"
+                  : isIngesting
+                    ? "is-ingesting"
+                    : "is-connected"
+              }`}
+            >
+              {!apiConnected
+                ? "Ingestor API disconnected"
+                : isIngesting
+                  ? `Connected: ingesting telemetry (${observationCount ?? 0} observations)`
+                  : `Connected: waiting for new telemetry (${observationCount ?? 0} observations)`}
+            </p>
           </div>
 
           {isLoading ? <p className="status">Loading node data...</p> : null}
@@ -672,7 +752,7 @@ function App() {
 
       <main className="content-grid">
         <section className="map-panel">
-          {listedLocatedNodes.length > 0 ? (
+          {mapNodes.length > 0 ? (
             <MapContainer
               center={mapCenter}
               zoom={mapZoom}
@@ -685,7 +765,7 @@ function App() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
 
-              {listedLocatedNodes.map((node) => (
+              {mapNodes.map((node) => (
                 <Marker
                   key={node.node_key}
                   position={[node.latitude, node.longitude]}
@@ -752,74 +832,133 @@ function App() {
             </div>
           )}
         </section>
-
-        <aside className="side-panel">
-          <h2>Node List</h2>
-
-          <div className="list-controls">
-            <label htmlFor="node-search-input">Search Names</label>
-            <input
-              id="node-search-input"
-              type="text"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search long or short name"
-            />
-
-            <label htmlFor="node-sort-select">Sort</label>
-            <select
-              id="node-sort-select"
-              value={sortOrder}
-              onChange={(event) => setSortOrder(event.target.value as NodeListSort)}
-            >
-              <option value="name-asc">Name (A-Z)</option>
-              <option value="name-desc">Name (Z-A)</option>
-              <option value="recent-desc">Latest Update (Newest)</option>
-              <option value="recent-asc">Latest Update (Oldest)</option>
-            </select>
-          </div>
-
-          {listedLocatedNodes.length === 0 ? (
-            <p className="empty-list">No telemetry loaded.</p>
-          ) : null}
-
-          {listedLocatedNodes.length > 0 && visibleNodeList.length === 0 ? (
-            <p className="empty-list">No nodes match the current search.</p>
-          ) : null}
-
-          {visibleNodeList.length > 0 ? (
-            <ul className="node-list">
-              {visibleNodeList.map((node) => (
-                <li
-                  key={node.node_key}
-                  className={
-                    selectedNodeKey === node.node_key ? "is-selected" : undefined
-                  }
-                >
-                  <button
-                    type="button"
-                    className="node-list-button"
-                    onClick={() => {
-                      setSelectedNodeKey(node.node_key);
-                      setMapFocusTarget({
-                        nodeKey: node.node_key,
-                        center: [node.latitude, node.longitude],
-                        requestId: Date.now(),
-                      });
-                    }}
-                  >
-                    <strong>{getCompactNodeHeader(node.latest)}</strong>
-                    {buildTelemetryLines(node.latest, unitSystem).map((line) => (
-                      <span key={`${node.node_key}-${line}`}>{line}</span>
-                    ))}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-        </aside>
       </main>
+
+      {isNodesModalOpen ? (
+        <div
+          className="nodes-modal-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsNodesModalOpen(false);
+            }
+          }}
+        >
+          <section
+            className="nodes-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="nodes-modal-title"
+          >
+            <header className="nodes-modal-header">
+              <h2 id="nodes-modal-title">Node List</h2>
+              <button
+                type="button"
+                className="nodes-modal-close"
+                onClick={() => setIsNodesModalOpen(false)}
+              >
+                Close
+              </button>
+            </header>
+
+            <div className="nodes-modal-body">
+              <div className="list-controls">
+                <label htmlFor="node-search-input">Search Names</label>
+                <input
+                  id="node-search-input"
+                  type="text"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search long or short name"
+                />
+
+                <label htmlFor="node-sort-select">Sort</label>
+                <select
+                  id="node-sort-select"
+                  value={sortOrder}
+                  onChange={(event) => setSortOrder(event.target.value as NodeListSort)}
+                >
+                  <option value="name-asc">Name (A-Z)</option>
+                  <option value="name-desc">Name (Z-A)</option>
+                  <option value="recent-desc">Latest Update (Newest)</option>
+                  <option value="recent-asc">Latest Update (Oldest)</option>
+                </select>
+
+                <label className="list-controls-checkbox" htmlFor="node-telemetry-only">
+                  <input
+                    id="node-telemetry-only"
+                    type="checkbox"
+                    checked={showTelemetryOnly}
+                    onChange={(event) => setShowTelemetryOnly(event.target.checked)}
+                  />
+                  Show only nodes with environment telemetry
+                </label>
+              </div>
+
+              {discoveredNodes.length === 0 ? (
+                <p className="empty-list">No discovered nodes yet.</p>
+              ) : null}
+
+              {discoveredNodes.length > 0 && visibleNodeList.length === 0 ? (
+                <p className="empty-list">
+                  {showTelemetryOnly
+                    ? "No telemetry nodes match the current search."
+                    : "No nodes match the current search."}
+                </p>
+              ) : null}
+
+              {visibleNodeList.length > 0 ? (
+                <ul className="node-list">
+                  {visibleNodeList.map((node) => {
+                    const hasTelemetry = hasEnvironmentTelemetry(node);
+                    const telemetryLines = buildTelemetryLines(node, unitSystem);
+                    const itemClassName = [
+                      hasTelemetry ? "has-telemetry" : "",
+                      selectedNodeKey === node.node_key ? "is-selected" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+
+                    return (
+                      <li
+                        key={node.node_key}
+                        className={itemClassName || undefined}
+                      >
+                        <button
+                          type="button"
+                          className="node-list-button"
+                          onClick={() => {
+                            setSelectedNodeKey(node.node_key);
+                            if (
+                              isFiniteCoordinate(node.node_latitude) &&
+                              isFiniteCoordinate(node.node_longitude)
+                            ) {
+                              setMapFocusTarget({
+                                nodeKey: node.node_key,
+                                center: [node.node_latitude, node.node_longitude],
+                                requestId: Date.now(),
+                              });
+                            }
+                            setIsNodesModalOpen(false);
+                          }}
+                        >
+                          <strong>{getCompactNodeHeader(node)}</strong>
+                          {telemetryLines.map((line) => (
+                            <span key={`${node.node_key}-${line}`}>{line}</span>
+                          ))}
+                          {telemetryLines.length === 0 ? (
+                            <span>No environment telemetry yet.</span>
+                          ) : null}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {isLogModalOpen ? (
         <div
@@ -849,10 +988,33 @@ function App() {
             </header>
 
             <div className="log-modal-body">
+              <div className="log-filters">
+                <label className="log-filter-checkbox" htmlFor="log-telemetry-only">
+                  <input
+                    id="log-telemetry-only"
+                    type="checkbox"
+                    checked={showLogTelemetryOnly}
+                    onChange={(event) =>
+                      setShowLogTelemetryOnly(event.target.checked)
+                    }
+                  />
+                  Show only messages with environment telemetry
+                </label>
+              </div>
+
               {isLogLoading ? <p className="status">Loading logs...</p> : null}
               {!isLogLoading && logError ? <p className="error">{logError}</p> : null}
               {!isLogLoading && !logError && logRows.length === 0 ? (
                 <p className="status">No ingested messages found.</p>
+              ) : null}
+
+              {!isLogLoading &&
+              !logError &&
+              logRows.length > 0 &&
+              filteredLogRows.length === 0 ? (
+                <p className="status">
+                  No ingested messages with environment telemetry found.
+                </p>
               ) : null}
 
               {!isLogLoading && !logError && visibleLogRows.length > 0 ? (
@@ -884,20 +1046,20 @@ function App() {
             <footer className="log-modal-footer">
               <button
                 type="button"
-                onClick={() => setLogPage((page) => Math.max(0, page - 1))}
-                disabled={isLogLoading || logPage === 0}
+                onClick={() => setLogPage(Math.max(0, effectiveLogPage - 1))}
+                disabled={isLogLoading || effectiveLogPage === 0}
               >
                 Previous
               </button>
               <p>
-                Page {Math.min(logPage + 1, logPageCount)} of {logPageCount}
+                Page {Math.min(effectiveLogPage + 1, logPageCount)} of {logPageCount}
               </p>
               <button
                 type="button"
                 onClick={() =>
-                  setLogPage((page) => Math.min(logPageCount - 1, page + 1))
+                  setLogPage(Math.min(logPageCount - 1, effectiveLogPage + 1))
                 }
-                disabled={isLogLoading || logPage >= logPageCount - 1}
+                disabled={isLogLoading || effectiveLogPage >= logPageCount - 1}
               >
                 Next
               </button>

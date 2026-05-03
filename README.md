@@ -9,15 +9,65 @@ Multi-project workspace for mesh-based weather data systems.
 
 Additional projects can be added as top-level sibling folders as the solution grows.
 
+## Development Environment Setup
+
+Prerequisites:
+
+- Python `3.11+`
+- Node.js `20+` and npm
+- Docker with Compose plugin (optional, for container workflow)
+
+1. Configure ingestor environment values:
+
+```bash
+cp meshweather-ingestor/.env.example meshweather-ingestor/.env
+```
+
+2. Set up the ingestor Python environment:
+
+```bash
+cd meshweather-ingestor
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+cd ..
+```
+
+3. Install frontend dependencies:
+
+```bash
+cd meshweather
+npm install
+cd ..
+```
+
+4. Run locally in two terminals:
+
+Terminal 1 (ingestor):
+
+```bash
+cd meshweather-ingestor
+source .venv/bin/activate
+meshweather-ingestor
+```
+
+Terminal 2 (frontend):
+
+```bash
+cd meshweather
+npm run dev
+```
+
+5. Open the frontend at `http://localhost:5173`.
+
+During local frontend development, Vite proxies `/api/*` and `/health` to
+`http://127.0.0.1:8080` by default.
+
 ## Docker Compose
 
 This workspace includes one container for each project and a single compose file at the repo root.
 
-1. Set Meshtastic host (required for ingestion mode):
-
-```bash
-export MESHTASTIC_NODE_IP=192.168.1.50
-```
+1. Configure ingestor settings in `meshweather-ingestor/.env` (Meshtastic host, ports, log level, etc.).
 
 2. Start both services:
 
@@ -32,8 +82,6 @@ docker compose up
 
 Optional environment variables:
 
-- `MESHWEATHER_PORT` (default `4403`)
-- `MESHWEATHER_LOG_LEVEL` (default `INFO`)
 - `MESHWEATHER_FRONTEND_PORT` (default `10090`)
 
 The SQLite database is persisted in the named volume `meshweather_data`.
@@ -72,11 +120,7 @@ Steps on Pi:
 
 1. Install Docker + Docker Compose plugin.
 2. Clone this repo.
-3. Set Meshtastic host:
-
-```bash
-export MESHTASTIC_NODE_IP=<meshtastic-node-ip>
-```
+3. Set Meshtastic host in `meshweather-ingestor/.env`.
 
 4. Start services:
 

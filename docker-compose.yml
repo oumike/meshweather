@@ -3,14 +3,8 @@ services:
     image: ghcr.io/oumike/meshweather-ingestor:latest
     pull_policy: always
     container_name: meshweather-ingestor
-    environment:
-      MESHTASTIC_NODE_IP: ${MESHTASTIC_NODE_IP:-host.docker.internal}
-      MESHWEATHER_PORT: ${MESHWEATHER_PORT:-4403}
-      MESHWEATHER_DB_PATH: ${MESHWEATHER_DB_PATH:-/app/data/meshweather.db}
-      MESHWEATHER_API_ENABLED: ${MESHWEATHER_API_ENABLED:-true}
-      MESHWEATHER_API_HOST: ${MESHWEATHER_API_HOST:-0.0.0.0}
-      MESHWEATHER_API_PORT: ${MESHWEATHER_API_PORT:-8080}
-      MESHWEATHER_LOG_LEVEL: ${MESHWEATHER_LOG_LEVEL:-INFO}
+    env_file:
+      - ./meshweather-ingestor/.env
     expose:
       - "8080"
     extra_hosts:

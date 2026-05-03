@@ -73,6 +73,11 @@ class MeshweatherIngestor:
                         hostname=self.host,
                         portNumber=self.port,
                     )
+                    logger.info(
+                        "Meshtastic TCP connection established to %s:%s",
+                        self.host,
+                        self.port,
+                    )
                 except Exception as exc:
                     logger.warning(
                         "Meshtastic connect failed (%s). Retrying in 5 seconds.",
