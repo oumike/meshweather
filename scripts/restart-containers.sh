@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/docker-compose.yml}"
-ENV_FILE="${ENV_FILE:-$ROOT_DIR/meshweather-ingestor/.env}"
-TAIL_LINES="${TAIL_LINES:-120}"
+COMPOSE_FILE="$ROOT_DIR/docker-compose.yml"
+ENV_FILE="$ROOT_DIR/meshweather-ingestor/.env"
+TAIL_LINES=120
 
 show_help() {
   cat <<'EOF'
@@ -14,25 +14,32 @@ Usage:
   scripts/restart-containers.sh [options]
 
 Options:
+  -e, --env PATH  Path to env file (default: <repo>/meshweather-ingestor/.env)
   -h, --help    Show this help message and exit.
-
-Environment overrides:
-  COMPOSE_FILE  Path to compose file (default: <repo>/docker-compose.yml)
-  ENV_FILE      Path to env file (default: <repo>/meshweather-ingestor/.env)
-  TAIL_LINES    Number of log lines to show per service (default: 120)
 EOF
 }
 
-if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
-  show_help
-  exit 0
-fi
-
-if [[ $# -gt 0 ]]; then
-  echo "Error: unknown argument '$1'" >&2
-  echo "Run with --help for usage." >&2
-  exit 1
-fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      show_help
+      exit 0
+      ;;
+    -e|--env)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "Error: --env requires a path argument." >&2
+        exit 1
+      fi
+      ENV_FILE="$2"
+      shift 2
+      ;;
+    *)
+      echo "Error: unknown argument '$1'" >&2
+      echo "Run with --help for usage." >&2
+      exit 1
+      ;;
+  esac
+done
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Error: docker is not installed or not on PATH." >&2
