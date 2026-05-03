@@ -40,7 +40,7 @@ The SQLite database is persisted in the named volume `meshweather_data`.
 
 ## GitHub Container Registry (GHCR)
 
-This repo includes a GitHub Actions workflow that builds and publishes both container images to GHCR on pushes to `main`, tags (`v*`), and manual dispatch.
+This repo includes a GitHub Actions workflow that builds and publishes both container images to GHCR only when a new tag (`v*`) is pushed or a GitHub release is published.
 
 Workflow file:
 

@@ -2,11 +2,11 @@ name: Publish Container Images
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*"
-  workflow_dispatch:
+  release:
+    types:
+      - published
 
 permissions:
   contents: read
@@ -39,11 +39,10 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/meshweather-ingestor
           tags: |
-            type=ref,event=branch
             type=ref,event=tag
-            type=sha
+            type=raw,value=latest
           flavor: |
-            latest=${{ github.ref == 'refs/heads/main' }}
+            latest=false
 
       - name: Build and push ingestor image
         uses: docker/build-push-action@v6
@@ -81,11 +80,10 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/meshweather-frontend
           tags: |
-            type=ref,event=branch
             type=ref,event=tag
-            type=sha
+            type=raw,value=latest
           flavor: |
-            latest=${{ github.ref == 'refs/heads/main' }}
+            latest=false
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
