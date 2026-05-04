@@ -5,13 +5,31 @@
   --panel-border: rgba(17, 45, 60, 0.16);
   --body-font: "IBM Plex Sans", "Helvetica Neue", "Avenir Next", sans-serif;
   --heading-font: "Space Grotesk", "Trebuchet MS", sans-serif;
+  --page-accent-1: rgba(242, 188, 79, 0.34);
+  --page-accent-2: rgba(39, 115, 147, 0.28);
+  --page-gradient-start: #e8f4fb;
+  --page-gradient-mid: #d4e7f2;
+  --page-gradient-end: #f3f7f1;
 
   font-family: var(--body-font);
   color: var(--text-main);
+  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme-resolved="dark"] {
+  --text-main: #d4e9f5;
+  --panel-border: rgba(130, 167, 186, 0.28);
+  --page-accent-1: rgba(113, 87, 34, 0.28);
+  --page-accent-2: rgba(37, 93, 120, 0.24);
+  --page-gradient-start: #101d25;
+  --page-gradient-mid: #152734;
+  --page-gradient-end: #0f1a21;
+
+  color-scheme: dark;
 }
 
 * {
@@ -22,9 +40,10 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 92% 10%, rgba(242, 188, 79, 0.34), rgba(242, 188, 79, 0) 40%),
-    radial-gradient(circle at 9% 87%, rgba(39, 115, 147, 0.28), rgba(39, 115, 147, 0) 46%),
-    linear-gradient(160deg, #e8f4fb 0%, #d4e7f2 52%, #f3f7f1 100%);
+    radial-gradient(circle at 92% 10%, var(--page-accent-1), rgba(242, 188, 79, 0) 40%),
+    radial-gradient(circle at 9% 87%, var(--page-accent-2), rgba(39, 115, 147, 0) 46%),
+    linear-gradient(160deg, var(--page-gradient-start) 0%, var(--page-gradient-mid) 52%, var(--page-gradient-end) 100%);
+  color: var(--text-main);
 }
 
 #root {

@@ -17,12 +17,22 @@ const API_HEALTH_ENDPOINT = "/health";
 const AUTO_REFRESH_MS = 30_000;
 const LOG_PAGE_SIZE = 10;
 type UnitSystem = "metric" | "imperial";
+type ThemePreference = "light" | "dark" | "auto";
+type ResolvedTheme = "light" | "dark";
 type NodeListSort =
   | "name-asc"
   | "name-desc"
   | "recent-desc"
   | "recent-asc";
 const UNIT_SYSTEM_STORAGE_KEY = "meshweather.unitSystem";
+const THEME_PREFERENCE_STORAGE_KEY = "meshweather.themePreference";
+const MAP_TILE_LIGHT_URL =
+  "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+const MAP_TILE_DARK_URL =
+  "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+const MAP_TILE_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const MAP_TILE_SUBDOMAINS = "abcd";
 
 function readStoredUnitSystem(): UnitSystem {
   try {
@@ -34,6 +44,18 @@ function readStoredUnitSystem(): UnitSystem {
     // Ignore storage access issues and use default.
   }
   return "metric";
+}
+
+function readStoredThemePreference(): ThemePreference {
+  try {
+    const stored = window.localStorage.getItem(THEME_PREFERENCE_STORAGE_KEY);
+    if (stored === "light" || stored === "dark" || stored === "auto") {
+      return stored;
+    }
+  } catch {
+    // Ignore storage access issues and use default.
+  }
+  return "auto";
 }
 
 function isFiniteCoordinate(value: number | null): value is number {
@@ -340,6 +362,17 @@ function App() {
   const [observationCount, setObservationCount] = useState<number | null>(null);
   const [, setLastObservationCount] = useState<number | null>(null);
   const [unitSystem, setUnitSystem] = useState<UnitSystem>(readStoredUnitSystem);
+  const [themePreference, setThemePreference] = useState<ThemePreference>(
+    readStoredThemePreference,
+  );
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => {
+    if (typeof window !== "undefined") {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+    }
+    return "light";
+  });
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
   const [mapFocusTarget, setMapFocusTarget] = useState<MapFocusTarget | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -361,6 +394,48 @@ function App() {
       // Ignore storage access issues.
     }
   }, [unitSystem]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const applyTheme = () => {
+      const nextResolvedTheme: ResolvedTheme =
+        themePreference === "auto"
+          ? mediaQuery.matches
+            ? "dark"
+            : "light"
+          : themePreference;
+
+      root.setAttribute("data-theme-preference", themePreference);
+      root.setAttribute("data-theme-resolved", nextResolvedTheme);
+      setResolvedTheme(nextResolvedTheme);
+    };
+
+    applyTheme();
+
+    try {
+      window.localStorage.setItem(THEME_PREFERENCE_STORAGE_KEY, themePreference);
+    } catch {
+      // Ignore storage access issues.
+    }
+
+    const onMediaChange = () => {
+      applyTheme();
+    };
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", onMediaChange);
+      return () => {
+        mediaQuery.removeEventListener("change", onMediaChange);
+      };
+    }
+
+    mediaQuery.addListener(onMediaChange);
+    return () => {
+      mediaQuery.removeListener(onMediaChange);
+    };
+  }, [themePreference]);
 
   useEffect(() => {
     if (!isLogModalOpen && !isNodesModalOpen) {
@@ -494,6 +569,9 @@ function App() {
   }, [mapNodes]);
 
   const mapZoom = mapNodes.length > 0 ? 6 : 4;
+
+  const mapTileUrl =
+    resolvedTheme === "dark" ? MAP_TILE_DARK_URL : MAP_TILE_LIGHT_URL;
 
   const lastRefreshHint = useMemo(() => {
     if (!lastRefreshedAt) {
@@ -643,7 +721,7 @@ function App() {
       <header className="topbar">
         <div className="title-block">
           <div className="title-headline">
-            <h1>Mesh Weather Dashboard</h1>
+            <h2>Mesh Weather Dashboard</h2>
           </div>
           <p className="subtitle">
             Live weather map powered by meshweather-ingestor API. Each node appears as a
@@ -655,23 +733,7 @@ function App() {
               src="/camellia-logo.svg"
               alt="Mesh Weather camellia logo"
             />
-          </div>
-        </div>
-
-        <div className="controls-card">
-          <div className="controls-top-row">
-            <div className="controls-top-actions">
-              <button
-                type="button"
-                className="refresh-button"
-                title={lastRefreshHint}
-                onClick={() => {
-                  void onManualRefresh();
-                }}
-                disabled={isLoading}
-              >
-                {isLoading ? "Refreshing..." : "Refresh"}
-              </button>
+            <div className="title-switchers">
               <div className="unit-toggle" role="group" aria-label="Unit system">
                 <button
                   type="button"
@@ -688,9 +750,92 @@ function App() {
                   Imperial
                 </button>
               </div>
+
+              <div className="theme-toggle" role="group" aria-label="Theme mode">
+                <button
+                  type="button"
+                  className={themePreference === "dark" ? "is-active" : ""}
+                  onClick={() => setThemePreference("dark")}
+                >
+                  Dark
+                </button>
+                <button
+                  type="button"
+                  className={themePreference === "light" ? "is-active" : ""}
+                  onClick={() => setThemePreference("light")}
+                >
+                  Light
+                </button>
+                <button
+                  type="button"
+                  className={themePreference === "auto" ? "is-active" : ""}
+                  onClick={() => setThemePreference("auto")}
+                >
+                  Auto
+                </button>
+              </div>
             </div>
+          </div>
+        </div>
+
+        <div className="controls-card">
+          <div className="stats-info-top">
+            <div className="stats-info-main">
+              <strong>{discoveredNodes.length}</strong>
+              <span>discovered nodes</span>
+            </div>
+            <div className="stats-action-buttons">
+              <button
+                type="button"
+                className="stats-log-button"
+                onClick={() => {
+                  void onOpenLogModal();
+                }}
+              >
+                Log
+              </button>
+              <button
+                type="button"
+                className="stats-log-button"
+                onClick={onOpenNodesModal}
+              >
+                Nodes
+              </button>
+            </div>
+          </div>
+          <p
+            className={`status-pill ${
+              !apiConnected
+                ? "is-offline"
+                : isIngesting
+                  ? "is-ingesting"
+                  : "is-connected"
+            }`}
+          >
+            {!apiConnected
+              ? "Ingestor API disconnected"
+              : isIngesting
+                ? `Connected: ingesting telemetry (${observationCount ?? 0} observations)`
+                : `Connected: waiting for new telemetry (${observationCount ?? 0} observations)`}
+          </p>
+
+          {isLoading ? <p className="status">Loading node data...</p> : null}
+          {loadError ? <p className="error">{loadError}</p> : null}
+
+          <div className="stats-controls-row">
+            <button
+              type="button"
+              className="refresh-button"
+              title={lastRefreshHint}
+              onClick={() => {
+                void onManualRefresh();
+              }}
+              disabled={isLoading}
+            >
+              {isLoading ? "Refreshing..." : "Refresh"}
+            </button>
             <label
-              className="status controls-top-status auto-refresh-toggle"
+              className="status auto-refresh-toggle stats-auto-refresh"
               htmlFor="auto-refresh-toggle"
             >
               <input
@@ -702,51 +847,6 @@ function App() {
               Auto-refresh: every 30 seconds
             </label>
           </div>
-
-          <div className="stats-info">
-            <div className="stats-info-top">
-              <div className="stats-info-main">
-                <strong>{discoveredNodes.length}</strong>
-                <span>discovered nodes</span>
-              </div>
-              <div className="stats-action-buttons">
-                <button
-                  type="button"
-                  className="stats-log-button"
-                  onClick={() => {
-                    void onOpenLogModal();
-                  }}
-                >
-                  Log
-                </button>
-                <button
-                  type="button"
-                  className="stats-log-button"
-                  onClick={onOpenNodesModal}
-                >
-                  Nodes
-                </button>
-              </div>
-            </div>
-            <p
-              className={`status-pill ${
-                !apiConnected
-                  ? "is-offline"
-                  : isIngesting
-                    ? "is-ingesting"
-                    : "is-connected"
-              }`}
-            >
-              {!apiConnected
-                ? "Ingestor API disconnected"
-                : isIngesting
-                  ? `Connected: ingesting telemetry (${observationCount ?? 0} observations)`
-                  : `Connected: waiting for new telemetry (${observationCount ?? 0} observations)`}
-            </p>
-          </div>
-
-          {isLoading ? <p className="status">Loading node data...</p> : null}
-          {loadError ? <p className="error">{loadError}</p> : null}
         </div>
       </header>
 
@@ -761,8 +861,10 @@ function App() {
             >
               <MapFocusController target={mapFocusTarget} />
               <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                key={`tiles-${resolvedTheme}`}
+                attribution={MAP_TILE_ATTRIBUTION}
+                subdomains={MAP_TILE_SUBDOMAINS}
+                url={mapTileUrl}
               />
 
               {mapNodes.map((node) => (
