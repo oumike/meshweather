@@ -201,7 +201,7 @@ class MeshweatherIngestor:
                         _get_first(position, "latitudeI", "latitude_i")
                     )
                     if latitude_i is not None:
-                        latitude = latitude_i * 1e-7
+                        latitude = round(latitude_i * 1e-7, 7)
                 observation.node_latitude = latitude
 
             if observation.node_longitude is None:
@@ -211,5 +211,5 @@ class MeshweatherIngestor:
                         _get_first(position, "longitudeI", "longitude_i")
                     )
                     if longitude_i is not None:
-                        longitude = longitude_i * 1e-7
+                        longitude = round(longitude_i * 1e-7, 7)
                 observation.node_longitude = longitude

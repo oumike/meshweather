@@ -112,6 +112,16 @@ if [[ ! -d .git ]]; then
   exit 1
 fi
 
+CURRENT_VERSION=""
+# Prefer explicit VERSION file, then fall back to the latest reachable git tag.
+if [[ -f "$ROOT_DIR/VERSION" ]]; then
+  CURRENT_VERSION="$(tr -d '\n' < "$ROOT_DIR/VERSION")"
+fi
+if [[ -z "$CURRENT_VERSION" ]]; then
+  CURRENT_VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown")"
+fi
+echo "Current version: $CURRENT_VERSION"
+
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "Error: working tree is not clean. Commit or stash changes before releasing." >&2
   exit 1

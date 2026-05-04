@@ -33,6 +33,8 @@ const MAP_TILE_DARK_URL =
 const MAP_TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 const MAP_TILE_SUBDOMAINS = "abcd";
+// Injected by Vite from VERSION/git tag so UI and release tooling stay aligned.
+const APP_VERSION = __APP_VERSION__;
 
 function readStoredUnitSystem(): UnitSystem {
   try {
@@ -400,6 +402,7 @@ function App() {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
     const applyTheme = () => {
+      // Auto mode tracks system preference; explicit mode pins the theme.
       const nextResolvedTheme: ResolvedTheme =
         themePreference === "auto"
           ? mediaQuery.matches
@@ -732,6 +735,7 @@ function App() {
               className="camellia-logo"
               src="/camellia-logo.svg"
               alt="Mesh Weather camellia logo"
+              title={`Version ${APP_VERSION}`}
             />
             <div className="title-switchers">
               <div className="unit-toggle" role="group" aria-label="Unit system">

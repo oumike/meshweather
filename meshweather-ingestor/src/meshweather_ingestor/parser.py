@@ -77,9 +77,10 @@ def parse_weather_observation(packet: Mapping[str, Any]) -> Optional[WeatherObse
 
     latitude = _coerce_float(_get_first(position_map, "latitude", "lat"))
     if latitude is None:
+        # Meshtastic position packets often use scaled int coordinates (1e-7 degrees).
         latitude_i = _coerce_float(_get_first(position_map, "latitudeI", "latitude_i"))
         if latitude_i is not None:
-            latitude = latitude_i * 1e-7
+            latitude = round(latitude_i * 1e-7, 7)
 
     longitude = _coerce_float(_get_first(position_map, "longitude", "lon"))
     if longitude is None:
@@ -87,7 +88,7 @@ def parse_weather_observation(packet: Mapping[str, Any]) -> Optional[WeatherObse
             _get_first(position_map, "longitudeI", "longitude_i")
         )
         if longitude_i is not None:
-            longitude = longitude_i * 1e-7
+            longitude = round(longitude_i * 1e-7, 7)
 
     observation = WeatherObservation(
         packet_from=_coerce_int(packet.get("from")),
@@ -173,6 +174,7 @@ def parse_weather_observation(packet: Mapping[str, Any]) -> Optional[WeatherObse
     )
 
     if not has_identity_or_location and not has_weather:
+        # Ignore packets that contain neither useful node identity/location nor weather values.
         return None
 
     return observation
