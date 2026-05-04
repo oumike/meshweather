@@ -10,7 +10,7 @@ DRY_RUN=0
 
 show_help() {
   cat <<'EOF'
-Create and optionally push a release tag.
+Update VERSION, create a release commit, and optionally push a release tag.
 
 Usage:
   scripts/release.sh [options]
@@ -136,9 +136,29 @@ else
   echo "Push: disabled (--no-push)"
 fi
 
+if [[ -f "$ROOT_DIR/VERSION" ]]; then
+  EXISTING_VERSION="$(tr -d '\n' < "$ROOT_DIR/VERSION")"
+else
+  EXISTING_VERSION=""
+fi
+if [[ "$EXISTING_VERSION" != "$TAG" ]]; then
+  VERSION_UPDATE_NEEDED=1
+  echo "VERSION file: will update to $TAG"
+else
+  VERSION_UPDATE_NEEDED=0
+  echo "VERSION file: already set to $TAG"
+fi
+
 if [[ $DRY_RUN -eq 1 ]]; then
   echo "Dry run enabled. No git changes made."
   exit 0
+fi
+
+if [[ $VERSION_UPDATE_NEEDED -eq 1 ]]; then
+  printf "%s\n" "$TAG" > "$ROOT_DIR/VERSION"
+  git add "$ROOT_DIR/VERSION"
+  git commit -m "chore(release): bump VERSION to $TAG"
+  echo "Committed VERSION update to $TAG"
 fi
 
 git tag -a "$TAG" -m "$MESSAGE"
