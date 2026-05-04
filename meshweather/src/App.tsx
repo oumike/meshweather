@@ -18,6 +18,7 @@ const AUTO_REFRESH_MS = 30_000;
 const LOG_PAGE_SIZE = 10;
 type UnitSystem = "metric" | "imperial";
 type ThemePreference = "light" | "dark" | "auto";
+type ThemeFamily = "camellia" | "nature" | "aurora";
 type ResolvedTheme = "light" | "dark";
 type NodeListSort =
   | "name-asc"
@@ -26,6 +27,7 @@ type NodeListSort =
   | "recent-asc";
 const UNIT_SYSTEM_STORAGE_KEY = "meshweather.unitSystem";
 const THEME_PREFERENCE_STORAGE_KEY = "meshweather.themePreference";
+const THEME_FAMILY_STORAGE_KEY = "meshweather.themeFamily";
 const MAP_TILE_LIGHT_URL =
   "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 const MAP_TILE_DARK_URL =
@@ -58,6 +60,18 @@ function readStoredThemePreference(): ThemePreference {
     // Ignore storage access issues and use default.
   }
   return "auto";
+}
+
+function readStoredThemeFamily(): ThemeFamily {
+  try {
+    const stored = window.localStorage.getItem(THEME_FAMILY_STORAGE_KEY);
+    if (stored === "camellia" || stored === "nature" || stored === "aurora") {
+      return stored;
+    }
+  } catch {
+    // Ignore storage access issues and use default.
+  }
+  return "camellia";
 }
 
 function isFiniteCoordinate(value: number | null): value is number {
@@ -367,6 +381,9 @@ function App() {
   const [themePreference, setThemePreference] = useState<ThemePreference>(
     readStoredThemePreference,
   );
+  const [themeFamily, setThemeFamily] = useState<ThemeFamily>(
+    readStoredThemeFamily,
+  );
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => {
     if (typeof window !== "undefined") {
       return window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -411,6 +428,7 @@ function App() {
           : themePreference;
 
       root.setAttribute("data-theme-preference", themePreference);
+      root.setAttribute("data-theme-family", themeFamily);
       root.setAttribute("data-theme-resolved", nextResolvedTheme);
       setResolvedTheme(nextResolvedTheme);
     };
@@ -419,6 +437,12 @@ function App() {
 
     try {
       window.localStorage.setItem(THEME_PREFERENCE_STORAGE_KEY, themePreference);
+    } catch {
+      // Ignore storage access issues.
+    }
+
+    try {
+      window.localStorage.setItem(THEME_FAMILY_STORAGE_KEY, themeFamily);
     } catch {
       // Ignore storage access issues.
     }
@@ -438,7 +462,7 @@ function App() {
     return () => {
       mediaQuery.removeListener(onMediaChange);
     };
-  }, [themePreference]);
+  }, [themeFamily, themePreference]);
 
   useEffect(() => {
     if (!isLogModalOpen && !isNodesModalOpen) {
@@ -725,11 +749,11 @@ function App() {
         <div className="title-block">
           <div className="title-headline">
             <h2>Mesh Weather Dashboard</h2>
+            <p className="subtitle">
+              Live weather map powered by meshweather-ingestor API. Each node appears as
+              a pin when coordinates are available.
+            </p>
           </div>
-          <p className="subtitle">
-            Live weather map powered by meshweather-ingestor API. Each node appears as a
-            pin when coordinates are available.
-          </p>
           <div className="camellia-drawing">
             <img
               className="camellia-logo"
@@ -737,47 +761,60 @@ function App() {
               alt="Mesh Weather camellia logo"
               title={`Version ${APP_VERSION}`}
             />
-            <div className="title-switchers">
-              <div className="unit-toggle" role="group" aria-label="Unit system">
-                <button
-                  type="button"
-                  className={unitSystem === "metric" ? "is-active" : ""}
-                  onClick={() => setUnitSystem("metric")}
-                >
-                  Metric
-                </button>
-                <button
-                  type="button"
-                  className={unitSystem === "imperial" ? "is-active" : ""}
-                  onClick={() => setUnitSystem("imperial")}
-                >
-                  Imperial
-                </button>
-              </div>
+          </div>
+          <div className="title-switchers">
+            <div className="unit-toggle" role="group" aria-label="Unit system">
+              <button
+                type="button"
+                className={unitSystem === "metric" ? "is-active" : ""}
+                onClick={() => setUnitSystem("metric")}
+              >
+                Metric
+              </button>
+              <button
+                type="button"
+                className={unitSystem === "imperial" ? "is-active" : ""}
+                onClick={() => setUnitSystem("imperial")}
+              >
+                Imperial
+              </button>
+            </div>
 
-              <div className="theme-toggle" role="group" aria-label="Theme mode">
-                <button
-                  type="button"
-                  className={themePreference === "dark" ? "is-active" : ""}
-                  onClick={() => setThemePreference("dark")}
-                >
-                  Dark
-                </button>
-                <button
-                  type="button"
-                  className={themePreference === "light" ? "is-active" : ""}
-                  onClick={() => setThemePreference("light")}
-                >
-                  Light
-                </button>
-                <button
-                  type="button"
-                  className={themePreference === "auto" ? "is-active" : ""}
-                  onClick={() => setThemePreference("auto")}
-                >
-                  Auto
-                </button>
-              </div>
+            <div className="theme-family-picker">
+              <select
+                id="theme-family-select"
+                aria-label="Theme family"
+                value={themeFamily}
+                onChange={(event) => setThemeFamily(event.target.value as ThemeFamily)}
+              >
+                <option value="camellia">Camellia</option>
+                <option value="nature">Nature</option>
+                <option value="aurora">Aurora</option>
+              </select>
+            </div>
+
+            <div className="theme-toggle" role="group" aria-label="Theme mode">
+              <button
+                type="button"
+                className={themePreference === "dark" ? "is-active" : ""}
+                onClick={() => setThemePreference("dark")}
+              >
+                Dark
+              </button>
+              <button
+                type="button"
+                className={themePreference === "light" ? "is-active" : ""}
+                onClick={() => setThemePreference("light")}
+              >
+                Light
+              </button>
+              <button
+                type="button"
+                className={themePreference === "auto" ? "is-active" : ""}
+                onClick={() => setThemePreference("auto")}
+              >
+                Auto
+              </button>
             </div>
           </div>
         </div>
@@ -1126,10 +1163,14 @@ function App() {
               {!isLogLoading && !logError && visibleLogRows.length > 0 ? (
                 <ul className="log-message-list">
                   {visibleLogRows.map((row) => {
+                    const hasTelemetry = hasEnvironmentTelemetry(row);
                     const telemetryLines = buildTelemetryLines(row, unitSystem);
 
                     return (
-                      <li key={row.id}>
+                      <li
+                        key={row.id}
+                        className={hasTelemetry ? "has-telemetry" : undefined}
+                      >
                         <p className="log-message-title">
                           <strong>{getNodeLabel(row)}</strong>
                           <span>{formatTimestamp(row)}</span>
