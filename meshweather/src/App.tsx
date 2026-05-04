@@ -825,24 +825,6 @@ function App() {
               <strong>{discoveredNodes.length}</strong>
               <span>discovered nodes</span>
             </div>
-            <div className="stats-action-buttons">
-              <button
-                type="button"
-                className="stats-log-button"
-                onClick={() => {
-                  void onOpenLogModal();
-                }}
-              >
-                Log
-              </button>
-              <button
-                type="button"
-                className="stats-log-button"
-                onClick={onOpenNodesModal}
-              >
-                Nodes
-              </button>
-            </div>
           </div>
           <p
             className={`status-pill ${
@@ -864,29 +846,50 @@ function App() {
           {loadError ? <p className="error">{loadError}</p> : null}
 
           <div className="stats-controls-row">
-            <button
-              type="button"
-              className="refresh-button"
-              title={lastRefreshHint}
-              onClick={() => {
-                void onManualRefresh();
-              }}
-              disabled={isLoading}
-            >
-              {isLoading ? "Refreshing..." : "Refresh"}
-            </button>
-            <label
-              className="status auto-refresh-toggle stats-auto-refresh"
-              htmlFor="auto-refresh-toggle"
-            >
-              <input
-                id="auto-refresh-toggle"
-                type="checkbox"
-                checked={isAutoRefreshEnabled}
-                onChange={(event) => setIsAutoRefreshEnabled(event.target.checked)}
-              />
-              Auto-refresh: every 30 seconds
-            </label>
+            <div className="stats-refresh-controls">
+              <button
+                type="button"
+                className="refresh-button"
+                title={lastRefreshHint}
+                onClick={() => {
+                  void onManualRefresh();
+                }}
+                disabled={isLoading}
+              >
+                {isLoading ? "Refreshing..." : "Refresh"}
+              </button>
+              <label
+                className="status auto-refresh-toggle stats-auto-refresh"
+                htmlFor="auto-refresh-toggle"
+              >
+                <input
+                  id="auto-refresh-toggle"
+                  type="checkbox"
+                  checked={isAutoRefreshEnabled}
+                  onChange={(event) => setIsAutoRefreshEnabled(event.target.checked)}
+                />
+                Auto-refresh: every 30 seconds
+              </label>
+            </div>
+
+            <div className="stats-action-buttons">
+              <button
+                type="button"
+                className="stats-log-button"
+                onClick={() => {
+                  void onOpenLogModal();
+                }}
+              >
+                Log
+              </button>
+              <button
+                type="button"
+                className="stats-log-button"
+                onClick={onOpenNodesModal}
+              >
+                Nodes
+              </button>
+            </div>
           </div>
         </div>
       </header>

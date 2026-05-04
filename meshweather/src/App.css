@@ -308,7 +308,7 @@
 .stats-info-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.6rem;
 }
 
@@ -339,13 +339,24 @@
 .stats-controls-row {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 0.56rem;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   margin-top: auto;
 }
 
-.stats-controls-row .refresh-button {
+.stats-refresh-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.56rem;
+  flex-wrap: nowrap;
+}
+
+.stats-controls-row .stats-action-buttons {
+  margin-left: auto;
+}
+
+.stats-refresh-controls .refresh-button {
   border-radius: 8px;
   padding: 0.24rem 0.5rem;
   min-width: 7.6rem;
