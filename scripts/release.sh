@@ -13,21 +13,16 @@ show_help() {
 Create and optionally push a release tag.
 
 Usage:
-  scripts/release.sh [options] <version>
-
-Arguments:
-  <version>            Semver value like 1.2.3 or v1.2.3
+  scripts/release.sh [options]
 
 Options:
-  -m, --message TEXT   Annotated tag message (default: "Release <tag>")
   --no-push            Create tag locally only
   -n, --dry-run        Print actions without changing git state
   -h, --help           Show this help message and exit
 
 Examples:
-  scripts/release.sh 1.3.0
-  scripts/release.sh v1.3.1 --message "Release v1.3.1"
-  scripts/release.sh 1.4.0 --no-push
+  scripts/release.sh
+  scripts/release.sh --no-push
 EOF
 }
 
@@ -41,14 +36,6 @@ while [[ $# -gt 0 ]]; do
     -h|--help)
       show_help
       exit 0
-      ;;
-    -m|--message)
-      if [[ $# -lt 2 || -z "${2:-}" ]]; then
-        echo "Error: --message requires a value." >&2
-        exit 1
-      fi
-      MESSAGE="$2"
-      shift 2
       ;;
     --no-push)
       PUSH=0
@@ -68,41 +55,17 @@ while [[ $# -gt 0 ]]; do
       exit 1
       ;;
     *)
-      if [[ -n "$TAG" ]]; then
-        echo "Error: multiple version values provided ('$TAG' and '$1')." >&2
-        exit 1
-      fi
-      TAG="$1"
-      shift
+      echo "Error: positional arguments are not supported." >&2
+      echo "Run with --help for usage." >&2
+      exit 1
       ;;
   esac
 done
 
 if [[ $# -gt 0 ]]; then
-  if [[ -n "$TAG" ]]; then
-    echo "Error: multiple version values provided ('$TAG' and '$1')." >&2
-  else
-    TAG="$1"
-  fi
-fi
-
-if [[ -z "$TAG" ]]; then
-  echo "Error: missing <version> argument." >&2
+  echo "Error: positional arguments are not supported." >&2
   echo "Run with --help for usage." >&2
   exit 1
-fi
-
-if [[ "$TAG" != v* ]]; then
-  TAG="v$TAG"
-fi
-
-if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]; then
-  echo "Error: '$TAG' is not a supported semver tag (expected vMAJOR.MINOR.PATCH)." >&2
-  exit 1
-fi
-
-if [[ -z "$MESSAGE" ]]; then
-  MESSAGE="Release $TAG"
 fi
 
 cd "$ROOT_DIR"
@@ -126,6 +89,34 @@ if [[ -n "$(git status --porcelain)" ]]; then
   echo "Error: working tree is not clean. Commit or stash changes before releasing." >&2
   exit 1
 fi
+
+if [[ ! -t 0 ]]; then
+  echo "Error: interactive prompts require a TTY." >&2
+  exit 1
+fi
+
+VERSION_INPUT=""
+read -r -p "New version (e.g. 1.2.3) [last: $CURRENT_VERSION]: " VERSION_INPUT
+
+if [[ -z "$VERSION_INPUT" ]]; then
+  echo "Error: no version entered. Aborting." >&2
+  exit 1
+fi
+
+TAG="$VERSION_INPUT"
+if [[ "$TAG" != v* ]]; then
+  TAG="v$TAG"
+fi
+
+if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]; then
+  echo "Error: '$TAG' is not a supported semver tag (expected vMAJOR.MINOR.PATCH)." >&2
+  exit 1
+fi
+
+DEFAULT_MESSAGE="Release $TAG"
+MESSAGE_INPUT=""
+read -r -p "Release message [$DEFAULT_MESSAGE]: " MESSAGE_INPUT
+MESSAGE="${MESSAGE_INPUT:-$DEFAULT_MESSAGE}"
 
 if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null 2>&1; then
   echo "Error: local tag '$TAG' already exists." >&2
