@@ -11,6 +11,9 @@ from .storage import SqliteWeatherRepository
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_MONITORED_CHANNEL_NAME = "MetalOnes"
+_TEXT_MESSAGE_PORTNUMS = {1, 7, "TEXT_MESSAGE_APP", "TEXT_MESSAGE_COMPRESSED_APP"}
+
 
 def _get_first(mapping: Mapping[str, Any], *keys: str) -> Any:
     for key in keys:
@@ -46,11 +49,38 @@ def _coerce_float(value: Any) -> float | None:
     return None
 
 
+def _coerce_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            return int(stripped)
+        except ValueError:
+            return None
+    return None
+
+
 class MeshweatherIngestor:
-    def __init__(self, host: str, port: int, repository: SqliteWeatherRepository) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        repository: SqliteWeatherRepository,
+        monitored_channel_name: str = _DEFAULT_MONITORED_CHANNEL_NAME,
+    ) -> None:
         self.host = host
         self.port = port
         self.repository = repository
+        self.monitored_channel_name = monitored_channel_name
         self._stop_event = threading.Event()
         self._reconnect_event = threading.Event()
         self._interface_lock = threading.Lock()
@@ -142,6 +172,8 @@ class MeshweatherIngestor:
         self._reconnect_event.set()
 
     def _on_receive(self, packet: Mapping[str, Any], interface: Any) -> None:
+        self._report_monitored_channel_message(packet, interface)
+
         observation = parse_weather_observation(packet)
         if observation is None:
             return
@@ -163,6 +195,81 @@ class MeshweatherIngestor:
                 source,
                 observation.packet_id,
             )
+
+    def _report_monitored_channel_message(
+        self, packet: Mapping[str, Any], interface: Any
+    ) -> None:
+        channel_name = self._resolve_channel_name(packet, interface)
+        if channel_name != self.monitored_channel_name:
+            return
+
+        text = _extract_text_message(packet)
+        if text is None:
+            return
+
+        logger.info(
+            "Channel %s message from %s: %s",
+            channel_name,
+            self._describe_packet_source(packet, interface),
+            text,
+        )
+
+    def _resolve_channel_name(self, packet: Mapping[str, Any], interface: Any) -> str | None:
+        channel_index = _coerce_int(packet.get("channel"))
+        if channel_index is None:
+            return None
+
+        local_node = getattr(interface, "localNode", None)
+        get_channel = getattr(local_node, "getChannelByChannelIndex", None)
+        if not callable(get_channel):
+            return None
+
+        try:
+            channel = get_channel(channel_index)
+        except Exception:
+            return None
+
+        if channel is None:
+            return None
+
+        settings = getattr(channel, "settings", None)
+        if isinstance(settings, Mapping):
+            return _coerce_name(settings.get("name"))
+
+        return _coerce_name(getattr(settings, "name", None))
+
+    def _describe_packet_source(self, packet: Mapping[str, Any], interface: Any) -> str:
+        source_name = _coerce_name(
+            _get_first(
+                packet,
+                "fromLongName",
+                "from_long_name",
+                "fromShortName",
+                "from_short_name",
+                "fromId",
+                "from_id",
+            )
+        )
+        if source_name is not None:
+            return source_name
+
+        packet_from = _coerce_int(packet.get("from"))
+        if packet_from is None:
+            return "unknown"
+
+        nodes_by_num = getattr(interface, "nodesByNum", None)
+        if isinstance(nodes_by_num, Mapping):
+            node = nodes_by_num.get(packet_from)
+            if isinstance(node, Mapping):
+                user = node.get("user")
+                if isinstance(user, Mapping):
+                    name = _coerce_name(
+                        _get_first(user, "longName", "long_name", "shortName", "short_name")
+                    )
+                    if name is not None:
+                        return name
+
+        return str(packet_from)
 
     def _enrich_node_names(
         self, observation: WeatherObservation, interface: Any
@@ -213,3 +320,36 @@ class MeshweatherIngestor:
                     if longitude_i is not None:
                         longitude = round(longitude_i * 1e-7, 7)
                 observation.node_longitude = longitude
+
+
+def _extract_text_message(packet: Mapping[str, Any]) -> str | None:
+    decoded = packet.get("decoded")
+    if not isinstance(decoded, Mapping):
+        return None
+
+    if not _is_text_message_portnum(decoded.get("portnum")):
+        return None
+
+    text = _coerce_name(decoded.get("text"))
+    if text is not None:
+        return text
+
+    payload = decoded.get("payload")
+    if isinstance(payload, str):
+        return _coerce_name(payload)
+
+    if isinstance(payload, (bytes, bytearray)):
+        try:
+            return _coerce_name(bytes(payload).decode("utf-8"))
+        except UnicodeDecodeError:
+            return None
+
+    return None
+
+
+def _is_text_message_portnum(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().upper() in _TEXT_MESSAGE_PORTNUMS
+
+    portnum = _coerce_int(value)
+    return portnum in _TEXT_MESSAGE_PORTNUMS

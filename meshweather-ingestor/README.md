@@ -49,6 +49,7 @@ CLI options:
 - `--host` Meshtastic node hostname or IP (optional when API is enabled)
 - `--port` TCP port, default `4403`
 - `--db-path` SQLite file path, default `data/meshweather.db`
+- `--monitored-channel` Meshtastic channel name to log text messages from, default `MetalOnes`
 - `--log-level` `DEBUG|INFO|WARNING|ERROR`, default `INFO`
 - `--api-host` API bind host, default `127.0.0.1`
 - `--api-port` API bind port, default `8080`
@@ -60,6 +61,7 @@ Environment variables (optional):
 - `MESHTASTIC_NODE_IP`
 - `MESHWEATHER_PORT`
 - `MESHWEATHER_DB_PATH`
+- `MESHWEATHER_MONITORED_CHANNEL`
 - `MESHWEATHER_LOG_LEVEL`
 - `MESHWEATHER_API_ENABLED`
 - `MESHWEATHER_API_HOST`

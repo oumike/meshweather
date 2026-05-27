@@ -37,6 +37,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             host=config.host,
             port=config.port,
             repository=repository,
+            monitored_channel_name=config.monitored_channel,
         )
 
     try:

@@ -19,6 +19,7 @@ class IngestorConfig:
     host: Optional[str]
     port: int
     db_path: Path
+    monitored_channel: str
     log_level: str
     api_enabled: bool
     api_host: str
@@ -157,6 +158,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="SQLite database path. Default: data/meshweather.db.",
     )
     parser.add_argument(
+        "--monitored-channel",
+        default=os.getenv("MESHWEATHER_MONITORED_CHANNEL", "MetalOnes"),
+        help="Meshtastic channel name to monitor for text messages. Default: MetalOnes.",
+    )
+    parser.add_argument(
         "--log-level",
         default=os.getenv("MESHWEATHER_LOG_LEVEL", "INFO"),
         help="Logging level: DEBUG, INFO, WARNING, ERROR. Default: INFO.",
@@ -204,6 +210,7 @@ def load_config(argv: Optional[Sequence[str]] = None) -> IngestorConfig:
 
     # If host is not configured, fall back to API-only mode instead of hard failing.
     api_only = bool(args.api_only or host is None)
+    monitored_channel = str(args.monitored_channel).strip() or "MetalOnes"
 
     log_level = str(args.log_level).upper()
     if log_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
@@ -213,6 +220,7 @@ def load_config(argv: Optional[Sequence[str]] = None) -> IngestorConfig:
         host=host,
         port=int(args.port),
         db_path=Path(args.db_path),
+        monitored_channel=monitored_channel,
         log_level=log_level,
         api_enabled=not bool(args.disable_api),
         api_host=str(args.api_host),
