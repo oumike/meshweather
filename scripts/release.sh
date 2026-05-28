@@ -10,7 +10,7 @@ DRY_RUN=0
 
 show_help() {
   cat <<'EOF'
-Update VERSION, create a release commit, push a release tag, and create a GitHub draft release.
+Run validation builds for backend/frontend, then update VERSION, create a release commit, push a release tag, and create a GitHub draft release.
 
 Usage:
   scripts/release.sh [options]
@@ -28,6 +28,11 @@ EOF
 
 if ! command -v git >/dev/null 2>&1; then
   echo "Error: git is not installed or not on PATH." >&2
+  exit 1
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Error: docker is not installed or not on PATH." >&2
   exit 1
 fi
 
@@ -165,6 +170,18 @@ if [[ $DRY_RUN -eq 1 ]]; then
   echo "Dry run enabled. No git changes made."
   exit 0
 fi
+
+echo "Running validation build: backend (meshweather-ingestor)..."
+docker build \
+  -t meshweather-ingestor:release-validation \
+  "$ROOT_DIR/meshweather-ingestor"
+
+echo "Running validation build: frontend (meshweather)..."
+docker build \
+  -t meshweather-frontend:release-validation \
+  "$ROOT_DIR/meshweather"
+
+echo "Validation builds passed. Proceeding with release creation."
 
 if [[ $VERSION_UPDATE_NEEDED -eq 1 ]]; then
   printf "%s\n" "$TAG" > "$ROOT_DIR/VERSION"
