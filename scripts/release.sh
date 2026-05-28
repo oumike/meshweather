@@ -10,13 +10,13 @@ DRY_RUN=0
 
 show_help() {
   cat <<'EOF'
-Update VERSION, create a release commit, and optionally push a release tag.
+Update VERSION, create a release commit, push a release tag, and create a GitHub draft release.
 
 Usage:
   scripts/release.sh [options]
 
 Options:
-  --no-push            Create tag locally only
+  --no-push            Create tag locally only (skips GitHub draft release)
   -n, --dry-run        Print actions without changing git state
   -h, --help           Show this help message and exit
 
@@ -73,6 +73,18 @@ cd "$ROOT_DIR"
 if [[ ! -d .git ]]; then
   echo "Error: repository root not found at $ROOT_DIR" >&2
   exit 1
+fi
+
+if [[ $PUSH -eq 1 ]]; then
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "Error: GitHub CLI (gh) is required to create a draft release. Install gh or run with --no-push." >&2
+    exit 1
+  fi
+
+  if ! gh auth status >/dev/null 2>&1; then
+    echo "Error: gh is not authenticated. Run 'gh auth login' or run with --no-push." >&2
+    exit 1
+  fi
 fi
 
 CURRENT_VERSION=""
@@ -166,6 +178,14 @@ git tag -a "$TAG" -m "$MESSAGE"
 if [[ $PUSH -eq 1 ]]; then
   git push origin "$TAG"
   echo "Created and pushed tag $TAG"
+
+  gh release create "$TAG" \
+    --draft \
+    --title "$MESSAGE" \
+    --generate-notes \
+    --verify-tag
+
+  echo "Created GitHub draft release for $TAG"
 else
   echo "Created local tag $TAG"
 fi
