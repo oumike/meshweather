@@ -10,7 +10,7 @@ DRY_RUN=0
 
 show_help() {
   cat <<'EOF'
-Run validation builds for backend/frontend, then update VERSION, create a release commit, push a release tag, and create a GitHub draft release.
+Run local validation builds for backend/frontend, then update VERSION, create a release commit, push a release tag, and create a GitHub draft release.
 
 Usage:
   scripts/release.sh [options]
@@ -31,8 +31,13 @@ if ! command -v git >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "Error: docker is not installed or not on PATH." >&2
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "Error: python3 is not installed or not on PATH." >&2
+  exit 1
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "Error: npm is not installed or not on PATH." >&2
   exit 1
 fi
 
@@ -171,15 +176,29 @@ if [[ $DRY_RUN -eq 1 ]]; then
   exit 0
 fi
 
+VALIDATION_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/meshweather-release-validation.XXXXXX")"
+cleanup_validation_artifacts() {
+  rm -rf "$VALIDATION_TMP_DIR"
+}
+trap cleanup_validation_artifacts EXIT
+
+BACKEND_VENV_DIR="$VALIDATION_TMP_DIR/backend-venv"
+BACKEND_DIST_DIR="$VALIDATION_TMP_DIR/backend-dist"
+
 echo "Running validation build: backend (meshweather-ingestor)..."
-docker build \
-  -t meshweather-ingestor:release-validation \
-  "$ROOT_DIR/meshweather-ingestor"
+python3 -m venv "$BACKEND_VENV_DIR"
+"$BACKEND_VENV_DIR/bin/python" -m pip install --quiet --upgrade pip build
+(
+  cd "$ROOT_DIR/meshweather-ingestor"
+  "$BACKEND_VENV_DIR/bin/python" -m build --sdist --wheel --outdir "$BACKEND_DIST_DIR"
+)
 
 echo "Running validation build: frontend (meshweather)..."
-docker build \
-  -t meshweather-frontend:release-validation \
-  "$ROOT_DIR/meshweather"
+(
+  cd "$ROOT_DIR/meshweather"
+  npm ci --no-audit --no-fund
+  npm run build
+)
 
 echo "Validation builds passed. Proceeding with release creation."
 
