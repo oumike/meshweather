@@ -15,6 +15,8 @@ const API_NODES_ENDPOINT = "/api/nodes?limit=1000";
 const API_OBSERVATIONS_ENDPOINT = "/api/observations?limit=50";
 const API_HEALTH_ENDPOINT = "/health";
 const AUTO_REFRESH_MS = 30_000;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const ONE_WEEK_MS = 7 * ONE_DAY_MS;
 const LOG_PAGE_SIZE = 10;
 type UnitSystem = "metric" | "imperial";
 type ThemePreference = "light" | "dark" | "auto";
@@ -130,6 +132,25 @@ function formatTimestamp(row: ApiNodeObservation): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(ts));
+}
+
+function getNodeRecencyClass(
+  row: ApiNodeObservation,
+  nowMs: number,
+): "is-updated-day" | "is-updated-week" | "is-updated-stale" {
+  const ts = rowTimestampMs(row);
+  if (ts === null) {
+    return "is-updated-stale";
+  }
+
+  const ageMs = nowMs - ts;
+  if (ageMs <= ONE_DAY_MS) {
+    return "is-updated-day";
+  }
+  if (ageMs <= ONE_WEEK_MS) {
+    return "is-updated-week";
+  }
+  return "is-updated-stale";
 }
 
 function formatValue(value: number | null, unit: string, digits = 1): string {
@@ -743,6 +764,8 @@ function App() {
     setIsNodesModalOpen(true);
   }
 
+  const nowMs = Date.now();
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -1039,6 +1062,24 @@ function App() {
                   />
                   Show only nodes with environment telemetry
                 </label>
+
+                <div className="node-recency-legend" aria-label="Node recency legend">
+                  <span className="node-recency-legend-title">Last updated outline:</span>
+                  <div className="node-recency-legend-items">
+                    <span className="node-recency-legend-item">
+                      <span className="node-recency-legend-swatch is-updated-day" />
+                      Within 24 hours
+                    </span>
+                    <span className="node-recency-legend-item">
+                      <span className="node-recency-legend-swatch is-updated-week" />
+                      Within 7 days
+                    </span>
+                    <span className="node-recency-legend-item">
+                      <span className="node-recency-legend-swatch is-updated-stale" />
+                      Older than 7 days
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {discoveredNodes.length === 0 ? (
@@ -1057,9 +1098,11 @@ function App() {
                 <ul className="node-list">
                   {visibleNodeList.map((node) => {
                     const hasTelemetry = hasEnvironmentTelemetry(node);
+                    const recencyClassName = getNodeRecencyClass(node, nowMs);
                     const telemetryLines = buildTelemetryLines(node, unitSystem);
                     const itemClassName = [
                       hasTelemetry ? "has-telemetry" : "",
+                      recencyClassName,
                       selectedNodeKey === node.node_key ? "is-selected" : "",
                     ]
                       .filter(Boolean)
@@ -1088,7 +1131,12 @@ function App() {
                             setIsNodesModalOpen(false);
                           }}
                         >
-                          <strong>{getCompactNodeHeader(node)}</strong>
+                          <p className="node-list-header">
+                            <strong>{getCompactNodeHeader(node)}</strong>
+                            <span className="node-list-last-updated">
+                              Last updated: {formatTimestamp(node)}
+                            </span>
+                          </p>
                           {telemetryLines.map((line) => (
                             <span key={`${node.node_key}-${line}`}>{line}</span>
                           ))}

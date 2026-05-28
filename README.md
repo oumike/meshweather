@@ -22,6 +22,12 @@ cp meshweather-ingestor/.env.example meshweather-ingestor/.env
 docker compose up --build
 ```
 
+To force running from locally built source (without pulling GHCR images), use:
+
+```bash
+scripts/start-containers-from-source.sh
+```
+
 3. Open the app:
 
 - Frontend: http://localhost:10090
@@ -30,6 +36,18 @@ docker compose up --build
 
 ```bash
 docker compose down
+```
+
+If you started with local source builds and want a one-command stop + clean:
+
+```bash
+scripts/stop-containers-from-source.sh
+```
+
+To also remove the persisted compose volume data:
+
+```bash
+scripts/stop-containers-from-source.sh --volumes
 ```
 
 ## Local Development Setup

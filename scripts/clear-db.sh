@@ -7,7 +7,7 @@ FORCE=0
 
 show_help() {
   cat <<'EOF'
-Clear meshweather ingested data from SQLite while preserving schema.
+Clear meshweather ingested data and discovered node metadata from SQLite while preserving schema.
 
 Usage:
   scripts/clear-db.sh [options]
@@ -65,7 +65,7 @@ if ! docker ps --format '{{.Names}}' | grep -Fxq "$SERVICE"; then
 fi
 
 if [[ "$FORCE" -ne 1 ]]; then
-  echo "This will delete all rows from weather_telemetry in: $DB_PATH"
+  echo "This will delete all rows from weather_telemetry and discovered_nodes in: $DB_PATH"
   read -r -p "Type 'yes' to continue: " confirm
   if [[ "$confirm" != "yes" ]]; then
     echo "Aborted."
@@ -86,22 +86,48 @@ con = sqlite3.connect(db_path)
 cur = con.cursor()
 
 cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='weather_telemetry'")
-exists = cur.fetchone() is not None
-if not exists:
-    raise SystemExit("Table 'weather_telemetry' does not exist in database")
+has_weather = cur.fetchone() is not None
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='discovered_nodes'")
+has_nodes = cur.fetchone() is not None
 
-cur.execute("SELECT COUNT(*) FROM weather_telemetry")
-before = int(cur.fetchone()[0])
+if not has_weather and not has_nodes:
+  raise SystemExit("Neither 'weather_telemetry' nor 'discovered_nodes' exists in database")
 
-cur.execute("DELETE FROM weather_telemetry")
+before_weather = 0
+before_nodes = 0
+
+if has_weather:
+  cur.execute("SELECT COUNT(*) FROM weather_telemetry")
+  before_weather = int(cur.fetchone()[0])
+
+if has_nodes:
+  cur.execute("SELECT COUNT(*) FROM discovered_nodes")
+  before_nodes = int(cur.fetchone()[0])
+
+# Delete telemetry first so foreign key references to discovered_nodes are removed.
+if has_weather:
+  cur.execute("DELETE FROM weather_telemetry")
+
+if has_nodes:
+  cur.execute("DELETE FROM discovered_nodes")
+
 con.commit()
 
 # VACUUM must run outside a transaction in SQLite.
 con.execute("VACUUM")
 
-cur.execute("SELECT COUNT(*) FROM weather_telemetry")
-after = int(cur.fetchone()[0])
+after_weather = 0
+after_nodes = 0
 
-print(f"Cleared weather_telemetry: {before} -> {after} rows")
+if has_weather:
+  cur.execute("SELECT COUNT(*) FROM weather_telemetry")
+  after_weather = int(cur.fetchone()[0])
+
+if has_nodes:
+  cur.execute("SELECT COUNT(*) FROM discovered_nodes")
+  after_nodes = int(cur.fetchone()[0])
+
+print(f"Cleared weather_telemetry: {before_weather} -> {after_weather} rows")
+print(f"Cleared discovered_nodes: {before_nodes} -> {after_nodes} rows")
 con.close()
 PY
